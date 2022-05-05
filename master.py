@@ -106,3 +106,13 @@ class MasterOptions():
 
     def get_options(self):
         return self._options
+
+
+class Master(MasterOptions):
+    """ 
+    Master algorithm for explicit co-simulation of slave models.
+    """
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.options = super().get_options()
