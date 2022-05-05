@@ -31,6 +31,7 @@ class Oscilator():
         self.m = mass
         self.k = stifness
         self.c = damping
+        self.parameters = {"m" : self.m, "k" : self.k, "c" : self.c}
 
     def get_name(self):
         """Returns the name of the object"""
@@ -40,9 +41,13 @@ class Oscilator():
         """Set's a new name for the object"""
         self.__name = name
 
-    def get_inputs(self):
+    def get_inputs(self, time):
         """Returns the inputs that the model receives as strings"""
-        return self.__osc_method
+        return {self.input_name : self.input(time)}
+
+    def set_input(self, input):
+        """Sets the input for the system"""
+        self.input_name, self.input = input
 
     def get_outputs(self):
         """Returns the outputs that the model produces as list of strings"""
@@ -55,6 +60,23 @@ class Oscilator():
         """Returns the states of the model as a list of strings"""
         return ["x", "v"]
 
-    def get_parameters(self):
-        """Returns a dictionary of all the parameters names and values"""
-        return {"m" : self.m, "k": self.k, "c": self.c}
+    def get(self, string):
+        """Returns the value of the specified parameter via string if it exists else 0"""
+        for key in self.parameters:
+            if key == string:
+                return self.parameters[string]
+        print("Warning: Could not find the specified parameter.")
+        return 0
+
+    def ode(self, t, x):
+        """
+        Contains the ordinary differential equation for the oscilator and
+        returns the solution
+
+        Inputs::
+        t --
+            time (s)
+        x --
+            state [x (m), v (m/s)]
+        """
+        return [x[1], -self.k/self.m*x[0] - self.c/self.m*x[1] + self.input(t)/self.m]

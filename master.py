@@ -2,27 +2,6 @@ import time
 import numpy as np
 from timeit import default_timer as timer
 
-
-class Model:
-    """
-    Creates a model for co-simulation.
-    """
-
-    def __init__(self, model):
-        self.model = model
-        self.inputs = self.model.get_inputs()
-        self.outputs = self.model.get_outputs()
-        self.states = self.model.get_states()
-        self.parameters = self.model.get_parameters()
-
-    def get(self, string):
-        for key in self.parameters:
-            if key == string:
-                return self.parameters[string]
-        print("Warning: Could not find the specified parameter.")
-
-
-
 class MasterOptions():
     """
     Master options for explicit co-simulation of slave models
