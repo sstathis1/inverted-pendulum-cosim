@@ -58,7 +58,7 @@ class MasterOptions():
         Options: "Jacobi", "Gauss"
         Default: "Jacobi"
     """
-    def __init__(self, **kw):
+    def __init__(self):
         self._options = {
             "local_rtol" : 1e-6,
             "rtol" : 1e-4,
@@ -71,20 +71,26 @@ class MasterOptions():
             "is_parallel" : True,
             "communication_method" : "Jacobi"
         }
-        for key in kw:
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, arguments):
+        for key in arguments:
             if key in self._options:
                 # Check if the step size given is within the max and min range
                 if key == "step_size":
-                    if kw[key] > self._options["step_max"]:
-                        self._options["step_max"] = kw[key]
-                        print("Warning: maximum step is smaller than step size given. Setting step_max equal to step size")
-                    elif kw[key] < self._options["step_min"]:
-                        self._options["step_min"] = kw[key]
-                        print("Warning: minimum step is bigger than step size given. Setting step_min equal to step size")
-                self._options[key] = kw[key]
-
-    def get_options(self):
-        return self._options
+                    if arguments[key] > self._options["step_max"]:
+                        self._options["step_max"] = arguments[key] * 10
+                        print("Warning: maximum step is smaller than step size given."
+                        " Setting step_max equal to step size * 10")
+                    elif arguments[key] < self._options["step_min"]:
+                        self._options["step_min"] = arguments[key] / 10
+                        print("Warning: minimum step is bigger than step size given."
+                        " Setting step_min equal to step size / 10")
+                self._options[key] = arguments[key]
 
 
 class Master(MasterOptions):
@@ -93,5 +99,6 @@ class Master(MasterOptions):
     """
 
     def __init__(self, **kw):
-        super().__init__(**kw)
-        self.options = super().get_options()
+        super().__init__()
+        self.options = kw
+        self.options = super().options
