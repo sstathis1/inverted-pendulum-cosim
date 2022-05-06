@@ -14,32 +14,42 @@ class Oscilator():
     damping --
         Defines the damping coefficient (Ns/m)
 
-    osc_method --
-        Defines how the oscilation is actuated 
-        Options: "force", "displacement"
-        Default: "force"
-        
     output --
         Defines the type of output from the system
         Options: "force", "displacement"
         Default: "displacement"
     """
-    def __init__(self, mass, stifness, damping, osc_method="force", output="displacement"):
-        self.__name = "one-dof-oscilator"
-        self.__osc_method = osc_method
-        self.__output = output
-        self.m = mass
-        self.k = stifness
-        self.c = damping
-        self.parameters = {"m" : self.m, "k" : self.k, "c" : self.c}
+    def __init__(self, mass, stifness, damping, output="displacement"):
+        self._name = "one-dof-oscilator"
+        self._output = output
+        self._m = mass
+        self._k = stifness
+        self._c = damping
+        self._parameters = {"m" : self._m, "k" : self._k, "c" : self._c}
 
-    def get_name(self):
-        """Returns the name of the object"""
-        return self.__name
+    @property
+    def name(self):
+        return self._name
 
-    def set_name(self, name):
-        """Set's a new name for the object"""
-        self.__name = name
+    @name.setter
+    def name(self, name):
+        self._name = name
+
+    @property
+    def osc_method(self):
+        return self._osc_method
+
+    @osc_method.setter
+    def osc_method(self, input):
+        try:
+            if len(input) == 2:
+                self._osc_method = "displacement"
+            elif len(input) == 1:
+                self._osc_method = "force"
+            else:
+                raise Exception("Did not provide a valid input.")
+        except TypeError:
+            self._osc_method = "force"
 
     def get_inputs(self, time):
         """Returns the inputs that the model receives as strings"""
@@ -62,12 +72,16 @@ class Oscilator():
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
-        for key in self.parameters:
+        for key in self._parameters:
             if key == string:
-                return self.parameters[string]
+                return self._parameters[string]
         print("Warning: Could not find the specified parameter.")
         return 0
 
+
+    def setup_simulation(self, initial_state, input, start_time, final_time):
+        pass
+    
     def ode(self, t, x):
         """
         Contains the ordinary differential equation for the oscilator and
@@ -79,4 +93,4 @@ class Oscilator():
         x --
             state [x (m), v (m/s)]
         """
-        return [x[1], -self.k/self.m*x[0] - self.c/self.m*x[1] + self.input(t)/self.m]
+        return [x[1], -self._k/self._m*x[0] - self._c/self._m*x[1] + self.input(t)/self._m]
