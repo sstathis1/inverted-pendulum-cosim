@@ -102,3 +102,8 @@ class Master(MasterOptions):
         super().__init__()
         self.options = kw
         self.options = super().options
+
+    def initialize(self, models):
+        for model in models:
+            self.outputs[model.name] = model.output
+            self.states[model.name] = model.states
