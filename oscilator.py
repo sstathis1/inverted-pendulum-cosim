@@ -1,3 +1,5 @@
+from scipy.integrate import solve_ivp
+
 class Oscilator():
     """
     Initializes a one-degree of freedom linear oscilator object, 
@@ -19,9 +21,11 @@ class Oscilator():
         Options: "force", "displacement"
         Default: "displacement"
     """
-    def __init__(self, mass, stifness, damping, output="displacement"):
+    def __init__(self, mass, stifness, damping):
         self._name = "one-dof-oscilator"
-        self._output = output
+        self._states = [None, None]
+        self._output = [None, None]
+        self._time = 0
         self._m = mass
         self._k = stifness
         self._c = damping
@@ -51,24 +55,37 @@ class Oscilator():
         except TypeError:
             self._osc_method = "force"
 
-    def get_inputs(self, time):
-        """Returns the inputs that the model receives as strings"""
-        return {self.input_name : self.input(time)}
+    @property
+    def input(self):
+        return {self.osc_method : self._input(self.time)}
 
-    def set_input(self, input):
-        """Sets the input for the system"""
-        self.input_name, self.input = input
+    @input.setter
+    def input(self, input):
+        self._input = input
 
-    def get_outputs(self):
-        """Returns the outputs that the model produces as list of strings"""
-        if self.__output == "displacement":
-            return ["x", "v"]
-        else:
-            return "f"
+    @property
+    def output(self):
+        return self.states
 
-    def get_states(self):
-        """Returns the states of the model as a list of strings"""
-        return ["x", "v"]
+    @output.setter
+    def output(self, new):
+        self._output = new
+
+    @property
+    def states(self):
+        return {"x" : self._states[0], "v" : self._states[1]}
+
+    @states.setter
+    def states(self, new):
+        self._states = new
+
+    @property
+    def time(self):
+        return self._time
+
+    @time.setter
+    def time(self, latest_time):
+        self._time = latest_time
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
@@ -77,14 +94,10 @@ class Oscilator():
                 return self._parameters[string]
         print("Warning: Could not find the specified parameter.")
         return 0
-
-
-    def setup_simulation(self, initial_state, input, start_time, final_time):
-        pass
     
     def ode(self, t, x):
         """
-        Contains the ordinary differential equation for the oscilator and
+        Contains the ordinary differential equations for the oscilator and
         returns the solution
 
         Inputs::
@@ -93,4 +106,39 @@ class Oscilator():
         x --
             state [x (m), v (m/s)]
         """
-        return [x[1], -self._k/self._m*x[0] - self._c/self._m*x[1] + self.input(t)/self._m]
+        if self.osc_method == "force":
+            return [x[1], -self._k/self._m*x[0] - self._c/self._m*x[1] + self._input(t)/self._m]
+        else:
+            return ([x[1], -(2*self._k)/self._m*x[0] -(2*self._c)/self._m*x[1] 
+                + self._k/self._m*self._input(t)[0] + self._c/self._m*self._input(t)[1]]) 
+
+    def simulate(self, initial_state, input, final_time, method="RK45", rtol=1e-9, atol=1e-9):
+        """
+        Solves the ode numerically starting from time = 0 
+        and returns a dictionary with the results of the states
+        
+        Inputs::
+
+        initial_state --
+            Defines the initial state vector of type list [x (m), v (m/s)]
+
+        input --
+            Passes the input function that will be called at each time step
+
+        final_time --
+            Defines the end time of the simulation 
+            units: (s)
+
+        Returns::
+
+        results --
+            Dictionary with keys of the type of output and values the output of the integration.
+            e.x. : {"x" : list(), "v" : list(), "time" : list()}
+        """
+        self.input = input
+        self.osc_method = input(0)
+        solution = solve_ivp(self.ode, [self.time, final_time], initial_state, method, rtol=rtol, atol=atol)
+        results = {"x" : solution.y[0], "v" : solution.y[1], "time" : solution.t}
+        self.states = [results["x"][-1], results["v"][-1]]
+        self.time = results["time"][-1]
+        return results
