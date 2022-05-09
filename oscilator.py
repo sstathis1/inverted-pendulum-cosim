@@ -21,7 +21,8 @@ class Oscilator():
         Options: "force", "displacement"
         Default: "displacement"
     """
-    def __init__(self, mass, stifness, damping):
+    def __init__(self, mass, stifness, damping, osc_method="displacement"):
+        self.osc_method = osc_method
         self._name = "one-dof-oscilator"
         self._states = [None, None]
         self._output = [None, None]
@@ -44,20 +45,17 @@ class Oscilator():
         return self._osc_method
 
     @osc_method.setter
-    def osc_method(self, input):
-        try:
-            if len(input) == 2:
-                self._osc_method = "displacement"
-            elif len(input) == 1:
-                self._osc_method = "force"
-            else:
-                raise Exception("Did not provide a valid input.")
-        except TypeError:
-            self._osc_method = "force"
+    def osc_method(self, method):
+        self._osc_method = method
 
     @property
     def input(self):
-        return {self.osc_method : self._input(self.time)}
+        if self._osc_method == "force":
+            return {"fc" : self._input}
+        elif self._osc_method == "displacement":
+            return {"xc" : self._input[0], "vc" : self._input[1]}
+        else:
+            raise  Exception(f"Not a valid input. Options are force or diplacement for model {self._name}")
 
     @input.setter
     def input(self, input):
@@ -136,7 +134,6 @@ class Oscilator():
             e.x. : {"x" : list(), "v" : list(), "time" : list()}
         """
         self.input = input
-        self.osc_method = input(0)
         solution = solve_ivp(self.ode, [self.time, final_time], initial_state, method, rtol=rtol, atol=atol)
         results = {"x" : solution.y[0], "v" : solution.y[1], "time" : solution.t}
         self.states = [results["x"][-1], results["v"][-1]]
