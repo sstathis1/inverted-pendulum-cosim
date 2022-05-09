@@ -15,7 +15,7 @@ def main():
     print(f"The states of the model before the simulation are: {model_1.states}")
     print(f"The outputs of the model before the simulation are: {model_1.output}")
     print(f"The time variable for the model before the simulation is set to be: {model_1.time}")
-
+    print()
     # Simulate the model on it's own
     res = model_1.simulate([0, 1], f, 10)
 
