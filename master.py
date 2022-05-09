@@ -98,12 +98,17 @@ class Master(MasterOptions):
     Master algorithm for explicit co-simulation of slave models.
     """
 
-    def __init__(self, **kw):
-        super().__init__()
+    def __init__(self, models, connections, **kw):
         self.options = kw
-        self.options = super().options
+        self.models = models
+        self.connections = connections
 
     def initialize(self, models):
         for model in models:
             self.outputs[model.name] = model.output
             self.states[model.name] = model.states
+            self.inputs[model.name] = model.input
+
+    def simulate(self, **kw):
+        # Stores the options for the co-simulation or uses default if no keyword arguments are given
+        self.options = kw
