@@ -1,3 +1,4 @@
+import numpy as np
 from scipy.integrate import solve_ivp
 
 class Oscilator():
@@ -21,7 +22,7 @@ class Oscilator():
         Options: "force", "displacement"
         Default: "displacement"
     """
-    def __init__(self, mass, stifness, damping, osc_method="displacement"):
+    def __init__(self, mass, stifness, damping, osc_method="displacement", output="displacement"):
         self.osc_method = osc_method
         self._name = "one-dof-oscilator"
         self._states = [None, None]
@@ -31,6 +32,23 @@ class Oscilator():
         self._k = stifness
         self._c = damping
         self._parameters = {"m" : self._m, "k" : self._k, "c" : self._c}
+        self.set_ss_matrices(output)
+
+    @property
+    def A(self):
+        return self._A
+    
+    @property
+    def B(self):
+        return self._B
+
+    @property
+    def C(self):
+        return self._C  
+
+    @property
+    def D(self):
+        return self._D 
 
     @property
     def name(self):
@@ -63,7 +81,7 @@ class Oscilator():
 
     @property
     def output(self):
-        return self.states
+        return self._output
 
     @output.setter
     def output(self, new):
@@ -84,6 +102,35 @@ class Oscilator():
     @time.setter
     def time(self, latest_time):
         self._time = latest_time
+
+    def set_ss_matrices(self, output):
+        # Create matrices A, B based on oscilation method
+        if self.osc_method == "force":
+            self._A = np.array([[0, 1], [-self._k / self._m, -self.c / self.m]])
+            self._B = np.array([0, 1]).reshape(2, 1)
+        elif self.osc_method == "displacement":
+            self._A = np.array([[0, 1], [-2 * self._k/ self._m, - 2* self.c / self.m]])
+            self._B = np.array([[0, 0], [self._k / self._m, self._c / self._m]])
+        else:
+            raise Exception(f"Not a valid oscilation method for model : {self.name}")
+
+        # Create matrices C, D based on output type
+        if output == "force" and self.osc_method == "force":
+            self._C = np.zeros([1, 2])
+            self._D = -1
+        elif output == "force" and self.osc_method == "displacement":
+            self._C = np.array([-self._k, -self._c])
+            self._D = np.array([self._k, self._c])
+        elif output == "displacement":
+            self._C = np.array([[1, 0], [0, 1]])
+            self._D = np.zeros([2, 2])
+        else:
+            raise Exception(f"Not a valid output type for model : {self.name}")
+
+    def setup_simulation(self, method="RK45", rtol=1e-9, atol=1e-9):
+        self._integration_method = method
+        self._rtol = rtol
+        self._atol = atol
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
