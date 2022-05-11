@@ -111,7 +111,11 @@ class Master(MasterOptions):
 
     def initialize(self, states):
         self.set_states(states)
-
+        for model in self.models:
+            # Check if array D is full of zeros
+            if not np.any(self.D):
+                model.output = model.C.dot(list(model.states.values()))
+                
     def get_outputs(self):
         output = []
         for model in self.models:
