@@ -1,9 +1,9 @@
-from numpy import cos, sin
-import numpy as np
-from scipy.integrate import solve_ivp
+from collections import deque
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from collections import deque
+import numpy as np
+from numpy import cos, sin
+from scipy.integrate import solve_ivp
 
 class SinglePendulum():
     """
@@ -23,7 +23,7 @@ class SinglePendulum():
     friction_coefficient --
         Defines the friction coefficient between the cart and the ground
     """
-    def __init__(self, mass_cart, mass_pendulum, length_pendulum):
+    def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient):
         self._name = "single-inverted-pendulum"
         self._states = [None, None]
         self._output = [None, None]
@@ -31,13 +31,15 @@ class SinglePendulum():
         self._mc = mass_cart
         self._mp = mass_pendulum
         self._l = length_pendulum / 2
+        self._b = friction_coefficient
         self._I = (self._mp * (2 * self._l)**2) / 12
         self._g = 9.81
         self._d0 = self._mc + self._mp
         self._d1 = self._mp * self._l ** 2 + self._I
         self._d2 = self._mp * self._l
         self._parameters = {"mass_cart" : self._mc, "mass_pendulum" : self._mp, 
-                            "length_pendulum" : 2 * self._l, "inertia_pendulum" : self._I}
+                            "length_pendulum" : 2 * self._l, "inertia_pendulum" : self._I,
+                            "friction_coefficient" : self._b}
 
     @property
     def name(self):
@@ -74,12 +76,12 @@ class SinglePendulum():
             state [x (m), v (m/s), theta (rad), omega (rad/s)]
         """
         delta = self._d0 * self._d1 - (self._d2 * cos(x[2]))**2
-        return  [x[1], 1 / delta * (self._d1 * (self.input(x) + self._d2 * x[3]**2 * sin(x[2]))
+        return  [x[1], 1 / delta * (self._d1 * (self.input(x) - self._b * x[1] + self._d2 * x[3]**2 * sin(x[2]))
                  - self._d2**2 * cos(x[2]) * sin(x[2]) * self._g), x[3], 
-                 1 / delta * (- self._d2 * cos(x[2]) * (self.input(x) + self._d2 * x[3]**2 * sin(x[2]))
+                 1 / delta * (- self._d2 * cos(x[2]) * (self.input(x) - self._b * x[1] + self._d2 * x[3]**2 * sin(x[2]))
                  + self._d0 * self._d2 * sin(x[2]) * self._g)]
 
-    def simulate(self, initial_state, final_time, input=lambda t: 0, method="BDF", rtol=1e-12, atol=1e-9):
+    def simulate(self, initial_state, final_time, input=lambda t: 0, method="BDF", rtol=1e-9, atol=1e-9):
         """
         Solves the ode numerically starting from time = 0 
         and returns a dictionary with the results of the states
@@ -132,8 +134,12 @@ class SinglePendulum():
 
         results --
             The results of the simulation as a dictionary {"variable" : value}
+
+        savefig --
+            Boolean if True it saves a gif of the animation produced
+            Default: True
         """
-        def animations(i):
+        def _animations(i):
             x = [x_cart[i], x_pendulum[i]]
             y = [0, y_pendulum[i]]
             if i == 0:
@@ -148,27 +154,33 @@ class SinglePendulum():
             trace.set_data(history_x, history_y)
             trace_cart.set_data(history_cart, 0)
             time_text.set_text(time_template % (time[i]))
-            return line
-
-        history_len = 150  # how many trajectory points to display
+            return line, trace, trace_cart
+        
+        # Defines how many data points to show at a time
+        history_len = 1500
+        
+        # Time between two points in (s)
         dt = results["time"][-1] / (50 * results["time"][-1])
+
+        # x, y, time data from results for pendulum and cart
         x_cart = results["x"]
         x_pendulum = x_cart + self.get("length_pendulum") * sin(results["theta"])
         y_pendulum = self.get("length_pendulum") * cos(results["theta"])
         time = results["time"]
 
+        # Create the figure
         fig = plt.figure(figsize=(5, 4))
-        ax = fig.add_subplot(xlim=(- 0.4 + np.min(x_pendulum), 0.4 + np.max(x_pendulum)), 
-                             ylim=(- 0.1 + np.min(y_pendulum), 0.1 + np.max(y_pendulum)))
+        ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_pendulum), 0.2 + np.max(x_pendulum)), 
+                             ylim=(- 0.5 + np.min(y_pendulum), 0.2 + np.max(y_pendulum)))
         ax.grid()
-        line, = ax.plot([], [], "o-", lw=2)
+        line, = ax.plot([], [], "o-", lw=4)
         trace, = ax.plot([], [], '.-', lw=1, ms=2)
         trace_cart, = ax.plot([], [], '.-', lw=1, ms=2)
         history_x, history_y = deque(maxlen=history_len), deque(maxlen=history_len)
         history_cart = deque(maxlen=history_len)
         time_template = 'time = %.1fs'
-        time_text = ax.text(0.05, 0.9, '', transform=ax.transAxes)
-        ani = FuncAnimation(fig, animations, len(time), interval=dt*1000)
+        time_text = ax.text(0.05, 0.95, '', transform=ax.transAxes, weight="bold")
+        ani = FuncAnimation(fig, _animations, len(time), interval=dt*1000)
         plt.show()
 
         # Save animation in gif format
