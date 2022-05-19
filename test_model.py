@@ -5,8 +5,8 @@ from numpy import cos, sin
 from math import pi
 import matplotlib.pyplot as plt
 
-def main():    
-    model_1 = SinglePendulum(1.5, 0.5, 0.5, 0)
+def main():
+    model_1 = SinglePendulum(1, 0.4, 0.4, 0.1)
     mp = model_1.get("mass_pendulum")
     mc = model_1.get("mass_cart")
     l = model_1.get("length_pendulum")
@@ -15,13 +15,13 @@ def main():
     print(f"mass pendulum: {mp}, mass cart: {mc}, length pendulum: {l}, inertia pendulum: {I}, friction_coefficient: {b}")
 
     # Get the gains for the controller using LQR continuous infinite time horizon
-    K = gains(mp, mc, l, I, b)
+    K = gains(mp, mc, l / 2, I, b)
 
     # Simulate the model on it's own
-    res = model_1.simulate([0, 0, 20 * pi / 180, 0], 8, input=lambda x: -K.dot(x))
+    res = model_1.simulate([0, 0, 20 * pi / 180, 0], 10, input=lambda x: -K.dot(x))
 
     # Create an animation of the results
-    model_1.animate(res, savefig=True)
+    model_1.animate(res, savefig=False)
 
     # Plot the angle response
     plt.figure(figsize=[6, 4], dpi=200)
@@ -50,7 +50,7 @@ def gains(mp, mc, l, I, b):
     d2 = mp * l
     p = d1 * d0 - d2**2
     Q = np.diag([5000000, 5000000, 500000, 500000])
-    R = 0.1
+    R = 1
     A = np.array([[0, 1, 0, 0],
                     [0, - d1 * b / p, - d2**2 * g, 0],
                     [0, 0, 0, 1],
