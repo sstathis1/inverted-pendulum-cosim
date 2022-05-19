@@ -25,7 +25,7 @@ class SinglePendulum():
     """
     def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient):
         self._name = "single-inverted-pendulum"
-        self._states = [None, None]
+        self._states = [None, None, None, None]
         self._output = [None, None]
         self._time = 0
         self._mc = mass_cart
@@ -37,6 +37,8 @@ class SinglePendulum():
         self._d0 = self._mc + self._mp
         self._d1 = self._mp * self._l ** 2 + self._I
         self._d2 = self._mp * self._l
+        self._C = np.array([[1, 0, 0, 0],
+                            [0, 0, 1, 0]])
         self._parameters = {"mass_cart" : self._mc, "mass_pendulum" : self._mp, 
                             "length_pendulum" : 2 * self._l, "inertia_pendulum" : self._I,
                             "friction_coefficient" : self._b}
@@ -56,6 +58,32 @@ class SinglePendulum():
     @time.setter
     def time(self, latest_time):
         self._time = latest_time
+
+    @property
+    def states(self):
+        return {"x" : self._states[0], "v" : self._states[1], 
+                "theta" : self._states[2], "omega" : self._states[3]}
+
+    @states.setter
+    def states(self, new):
+        states = new
+
+    @property
+    def output(self):
+        self._output = self._C.dot(self._states)
+        return {"x" : self._output[0], "theta" : self._output[1]}
+
+    @output.setter
+    def output(self, new):
+        self._output = new
+
+    @property
+    def input(self):
+        return self._input
+
+    @input.setter
+    def input(self, new):
+        self._input = new
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
