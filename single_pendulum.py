@@ -6,21 +6,21 @@ from numpy import cos, sin
 from scipy.integrate import solve_ivp
 
 class SinglePendulum():
-    """
-    Initializes a single inverted pendulum object
+    """Initializes a single inverted pendulum object
 
-    Inputs::
+    Parameters
+    ----------
 
-    mass_cart --
+    mass_cart :
         Defines the mass of the cart (kg)
 
-    mass_pendulum --
+    mass_pendulum :
         Defines the mass of the pendulum (kg)
 
-    length_pendulum --
+    length_pendulum :
         Defines the length of the pendulum (m)
 
-    friction_coefficient --
+    friction_coefficient :
         Defines the friction coefficient between the cart and the ground
     """
     def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient):
@@ -94,13 +94,14 @@ class SinglePendulum():
         return 0
 
     def ode(self, t, x):
-        """
-        Contains the system of ordinary differential equations for the single-pendulum on a cart.
+        """Contains the system of ordinary differential equations for the single-pendulum on a cart.
 
-        Inputs::
-        t --
+        Parameters
+        ----------
+
+        t :
             time (s)
-        x --
+        x :
             state [x (m), v (m/s), theta (rad), omega (rad/s)]
         """
         delta = self._d0 * self._d1 - (self._d2 * cos(x[2]))**2
@@ -110,16 +111,16 @@ class SinglePendulum():
                  + self._d0 * self._d2 * sin(x[2]) * self._g)]
 
     def simulate(self, initial_state, final_time, input=lambda t: 0, method="BDF", rtol=1e-9, atol=1e-9):
-        """
-        Solves the ode numerically starting from time = 0 
+        """Solves the ode numerically starting from time = 0 
         and returns a dictionary with the results of the states
         
-        Inputs::
+        Parameters
+        ----------
 
-        initial_state --
+        initial_state :
             Defines the initial state vector of type list [x (m), v (m/s), theta (rad), omega (rad/s)]
 
-        final_time --
+        final_time :
             Defines the end time of the simulation 
             units: (s)
 
@@ -127,21 +128,22 @@ class SinglePendulum():
             Passes the input function that will be called at each time step
             Default: 0
 
-        method --
+        method :
             Defines the numerical method to solve the ode
             Default: "RK45"
 
-        rtol --
+        rtol :
             Defines the relative tolerance that will be provided to the ode solver
             Default: 1e-9
 
-        atol -- 
+        atol :
             Defines the absolute tolerance that will be provided to the ode solver
             Default: 1e-9
 
-        Returns::
+        Returns
+        -------
 
-        results --
+        results :
             Dictionary with keys of the type of output and values the output of the integration.
             e.x. : {"x" : list(), "theta" : list(), "time" : list()}
         """
@@ -150,20 +152,21 @@ class SinglePendulum():
                              t_eval=np.linspace(0, final_time, 50*final_time), rtol=rtol, atol=atol)
         results = {"x" : solution.y[0], "theta" : solution.y[2], "v" : solution.y[1], 
                    "omega" : solution.y[3], "time" : solution.t}
+        results["force"] = list(self.input([results["x"], results["v"], results["theta"], results["omega"]])[0])
         self.states = [results["x"][-1], results["theta"][-1]]
         self.time = results["time"][-1]
         return results
 
     def animate(self, results, savefig=True):
-        """
-        Animates the solution of the pendulum on the cart using matplotlib
+        """Animates the solution of the pendulum on the cart using matplotlib
         
-        Input::
+        Input
+        -----
 
-        results --
+        results :
             The results of the simulation as a dictionary {"variable" : value}
 
-        savefig --
+        savefig :
             Boolean if True it saves a gif of the animation produced
             Default: True
         """
