@@ -5,6 +5,7 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 from numpy import cos, sin
 from scipy.integrate import solve_ivp
+from scipy import signal, linalg
 
 class SinglePendulumController():
     """
@@ -24,9 +25,30 @@ class SinglePendulumController():
 
     friction_coefficient :
         Defines the friction coefficient between the cart and the ground
+
+    P :
+        Covariance matrix of states at time 0.
+        Use Gaussian white noise for optimal estimator
+        Default : zero covariances, deterministic states
+
+    Q :
+        Covariance matrix of plant disturbances.
+        Constant white noise.
+        Default : zero covariances, deterministic plant
+
+    R :
+        Covariance matrix of measurment error.
+        Constant white noise.
+        Default : zero covariances, deterministic measurments
+
+    is_discrete :
+        If True then the system will be discretized with a sampling period T
+        If False then the system will be solved continuously from the ode's.
     """
-    def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient):
+    def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient, 
+                 P=np.ones([4, 4]), Q=np.ones([4, 4]), R=np.ones([2, 2]), is_discrete=True):
         self._name = "single-inverted-pendulum-controller"
+        self._is_discrete = is_discrete
         self._states = [None, None, None, None]
         self._output = 0
         self._time = 0
@@ -39,18 +61,14 @@ class SinglePendulumController():
         self._d0 = self._mc + self._mp
         self._d1 = self._mp * self._l ** 2 + self._I
         self._d2 = self._mp * self._l
+        self._P = P
+        self._Q = Q
+        self._R = R
         self._parameters = {"mass_cart" : self._mc, "mass_pendulum" : self._mp, 
                             "length_pendulum" : 2 * self._l, "inertia_pendulum" : self._I,
                             "friction_coefficient" : self._b}
         self._det = self._d1 * self._d0 - self._d2**2
-        self._A = np.array([[0, 1, 0, 0],
-                            [0, - self._d1 * self._b / self._det, - self._d2**2 * self._g, 0],
-                            [0, 0, 0, 1],
-                            [0, self._d2 * self._b, self._d0 * self._d2 * self._g, 0]])
-        self._B = np.array([0, self._d1 / self._det, 0, - self._d2 / self._det]).reshape(-1, 1)
-        self._C = np.array([[1, 0, 0, 0],
-                            [0, 0, 1, 0]])
-        self._D = np.zeros([2, 1])
+        self._create_ss_matrices()
         if not self._is_observable():
             raise Exception("The system is not observable with the given measurments and canot be estimated.")
 
@@ -70,6 +88,43 @@ class SinglePendulumController():
     def time(self, latest_time):
         self._time = latest_time
 
+    @property
+    def input(self):
+        return {"x_measured" : self._measurments[0], "v_measured" : self._measurments[1]}
+
+    @input.setter
+    def input(self, new):
+        self._measurments = new(self.time+self.sampling_time)
+
+    @property
+    def output(self):
+        return {"force" : self._output}
+
+    @output.setter
+    def output(self, new):
+        self._output = new
+
+    @property
+    def states(self):
+        return {"x_linear" : self._states[0], "v_linear" : self._states[1],
+                "theta_linear" : self._states[2], "omega_linear" : self._states[3]}
+
+    @states.setter
+    def states(self, new):
+        self._states = new
+
+    @property
+    def kalman_gain(self):
+        return self._P.dot(self._Cd.T).dot(linalg.inv(self._Cd.dot(self._P).dot(self._Cd.T) + self._R))
+
+    def setup_experiment(self, T):
+        if self._is_discrete:
+            self.sampling_time = T
+            self._discretize_ss()
+            self.gain = self._lqr()
+            self._measurments = self._Cd.dot(self._states)
+            self.feedback = - self.gain.dot(self._states)
+
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
         for key in self._parameters:
@@ -78,20 +133,13 @@ class SinglePendulumController():
         print("Warning: Could not find the specified parameter.")
         return 0
 
-    def ode(self, t, x):
-        """Contains the linearized system of ordinary differential equations for the single-pendulum on a cart.
-
-        Parameters
-        ----------
-
-        t :
-            time (s)
-        x :
-            state [x (m), v (m/s), theta (rad), omega (rad/s)]
-        """
-        return [x[1], - self._d1 * self._b / self._det * x[1] - self._d2**2 * self._g / self._det * x[2] 
-                + self._d1 / self._det * self.u(x), x[3], self._d2 * self._b / self._det * x[1]
-                + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
+    def do_step(self, *args):
+        """Does one step when called from the master object and returns True if it succeeded"""
+        self._predict()
+        self._correct()
+        self.output = - self.gain.dot(self._states)
+        self.feedback = self._output
+        return True
 
     def simulate(self, initial_state, final_time, input=lambda t: 0, method="RK45", rtol=1e-9, atol=1e-9):
         """Solves the ode numerically starting from time = 0 
@@ -131,7 +179,7 @@ class SinglePendulumController():
             e.x. : {"x" : list(), "theta" : list(), "time" : list()}
         """
         self.u = input
-        solution = solve_ivp(self.ode, [self.time, final_time], initial_state, method, 
+        solution = solve_ivp(self._ode, [self.time, final_time], initial_state, method, 
                              t_eval=np.linspace(0, final_time, 50*final_time), rtol=rtol, atol=atol)
         results = {"x" : solution.y[0], "theta" : solution.y[2], "v" : solution.y[1], 
                    "omega" : solution.y[3], "time" : solution.t}
@@ -201,6 +249,31 @@ class SinglePendulumController():
         if savefig:
             ani.save("single_pendulum_linear.gif", writer='pillow')
 
+    def _ode(self, t, x):
+        """Contains the linearized system of ordinary differential equations for the single-pendulum on a cart.
+
+        Parameters
+        ----------
+
+        t :
+            time (s)
+        x :
+            state [x (m), v (m/s), theta (rad), omega (rad/s)]
+        """
+        return [x[1], - self._d1 * self._b / self._det * x[1] - self._d2**2 * self._g / self._det * x[2] 
+                + self._d1 / self._det * self.u(x), x[3], self._d2 * self._b / self._det * x[1]
+                + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
+
+    def _lqr(self):
+        Q = np.diag([5000000, 5000000, 500000, 500000])
+        R = 1
+        if self._is_discrete:
+            P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
+            return 1 / R * self._Bd.T.dot(P)
+        else:
+            P = linalg.solve_continuous_are(self._A, self._B, Q, R)
+            return 1 / R * self._B.T.dot(P)
+
     def _is_observable(self):
         """Checks whether the system is observable given matrices A, C
         
@@ -212,3 +285,52 @@ class SinglePendulumController():
             return True
         else:
             return False
+
+    def _create_ss_matrices(self):
+        """Creates the continuous-time state-space matrices of the linear model"""
+        self._A = np.array([[0, 1, 0, 0],
+                            [0, - self._d1 * self._b / self._det, - self._d2**2 * self._g, 0],
+                            [0, 0, 0, 1],
+                            [0, self._d2 * self._b, self._d0 * self._d2 * self._g, 0]])
+        self._B = np.array([0, self._d1 / self._det, 0, - self._d2 / self._det]).reshape(-1, 1)
+        self._C = np.array([[1, 0, 0, 0],
+                            [0, 0, 1, 0]])
+        self._D = np.zeros([2, 1])
+
+    def _discretize_ss(self):
+        """Creates the discrete-time state-space matrices with the given sampling time"""
+        self._Ad, self._Bd, self._Cd, self._Dd, _ = signal.cont2discrete((self._A, self._B, self._C, self._D), self.sampling_time)
+
+    def _predict(self):
+        self._predict_states()
+        self._predict_covariance()
+
+    def _predict_states(self):
+        if self._is_discrete:
+            self.states = self._Ad.dot(self._states) + self._Bd.dot(self.feedback)
+        else:
+            pass
+
+    def _predict_covariance(self):
+        if self._is_discrete:
+            self._P = self._Ad.dot(self._P).dot(self._Ad.T) + self._Q
+        else:
+            pass
+
+    def _correct(self):
+        gain = self.kalman_gain
+        self._correct_states(gain)
+        self._correct_covariance(gain)
+
+    def _correct_states(self, gain):
+        if self._is_discrete:
+            self.states = self._states + gain.dot(self._measurments - self._Cd.dot(self._states))
+        else:
+            pass
+
+    def _correct_covariance(self, gain):
+        if self._is_discrete:
+            self._P = ((np.eye(4) - gain.dot(self._Cd)).dot(self._P).dot((np.eye(4) - gain.dot(self._Cd)).T) 
+                       + gain.dot(self._R).dot(gain.T))
+        else:
+            pass
