@@ -1,5 +1,5 @@
-import time
 import numpy as np
+from scipy.interpolate import interp1d
 from timeit import default_timer as timer
 
 class MasterOptions():
@@ -66,9 +66,9 @@ class MasterOptions():
             "step_size" : 0.01,
             "step_max" : 0.1,
             "step_min" : 0.0001,
-            "error_controlled" : True,
+            "error_controlled" : False,
             "order" : 0,
-            "is_parallel" : True,
+            "is_parallel" : False,
             "communication_method" : "Jacobi"
         }
 
@@ -102,87 +102,141 @@ class Master(MasterOptions):
         super().__init__()
         self.options = kw
         self.models = models
-        self.check_names()
+        self._check_names()
+        self.results = {}    
 
-    def check_names(self):
+    def simulate(self, initial_states, start_time, final_time, **kw):
+        self.options = kw
+        self.results["time"] = start_time
+        self._initialize(initial_states)
+        if self.options["communication_method"] == "Jacobi":
+            self._jacobi(start_time, final_time)
+        elif self.options["communication_method"] == "Gauss":
+            self._gauss(start_time, final_time)
+        else:
+            raise Exception("A non valid communication method was passed")
+        return self.results
+
+    def _check_names(self):
         if self.models[0].name == self.models[1].name:
             self.models[0].name = self.models[0].name + "_0"
             self.models[1].name = self.models[1].name + "_1"
 
-    def initialize(self, states):
-        self.set_states(states)
+    def _initialize(self, states):
+        self._set_states(states)
+        self._inputs = {}
+        temp = {"values" : None, "time" : None}
         for model in self.models:
-            # Check if array D is full of zeros
-            if not np.any(self.D):
-                model.output = model.C.dot(list(model.states.values()))
-                
-    def get_outputs(self):
+            self._inputs[model.name] = temp
+            model.setup_experiment(self.options["step_size"])
+            self._inputs[model.name]["values"] = list(model.input.values())
+            self._inputs[model.name]["time"] = model.time
+            for key in model.output:
+                self.results[key] = model.output[key]    
+
+    def _get_outputs(self):
         output = []
         for model in self.models:
             output += list(model.output.values())
         return output
 
-    def get_states(self):
+    def _get_states(self):
         states = []
         for model in self.models:
             states += list(model.states.values())
         return states
 
-    def set_states(self, states):
+    def _set_states(self, states):
         i = 0
         for model in self.models:
-            model.states = states[i:len(model.states)]
+            model.states = states[i:len(model.states) + i]
             i += len(model.states)
 
-    def set_inputs(self, last_inputs):
-        for model in self.models:
-            model.input = self.extrapolate_input(last_inputs)
+    def _set_inputs(self, last_inputs, last_time):
+        inputs = [None, None]
+        inputs[0] = last_inputs[len(self.models[0].output)::]
+        inputs[1] = last_inputs[0:len(self.models[0].output)]
+        for i, model in enumerate(self.models):
+            model.input = self._extrapolate(model.name, inputs[i], last_time)
 
-    def extrapolate_input(self, last_inputs):
-        self._inputs += last_inputs
+    def _extrapolate(self, name, new_inputs, new_time):
+        if len(self._inputs[name]["values"]) <= self.options["order"]:
+            self._inputs[name]["values"] += new_inputs
+            self._inputs[name]["time"] += new_time
+        else:
+            self._inputs[name]["values"].pop(0)
+            self._inputs[name]["time"].pop(0)
+            self._inputs[name]["values"] += new_inputs
+            self._inputs[name]["time"] += new_time
+        return interp1d(self._inputs[name]["time"], self._inputs[name]["values"], kind=self.options["order"])
 
-    def jacobi_algorithm(self, start_time, final_time):
+    def _perform_step(self, step_size):
+        if self.options["is_parallel"]:
+            self._perform_step_parallel(step_size)
+        else:
+            for model in self.models:
+                model.do_step(step_size)
+                model.time += step_size
+
+    def _perform_step_parallel(self, step_size):
+        # TODO : Write an algorithm to perform the step in parallel for all models using multithreading
+        pass
+
+    def _jacobi(self, start_time, final_time):
         step_size = self.options["step_size"]
         if self.options["error_controlled"]:
             current_time = start_time
             while current_time < final_time:
                 # Set states
-                states = self.get_states()
-                
-                self.set_inputs()
+                states = self._get_states()
 
                 # Take a full step
-                self.perform_step()
-                y_full = self.get_outputs()
+                self._perform_step(step_size)
+                y_full = self._get_outputs()
+                current_time += step_size
 
                 # Restore states
-                self.set_states(states)
+                self._set_states(states)
 
                 # Take a half step
                 step_size = step_size / 2
-                self.perform_step()
+                self._perform_step(step_size)
 
                 # Take another half step
-                self.perform_step()
-                y_half = self.get_outputs()
+                self._perform_step(step_size)
+                y_half = self._get_outputs()
 
                 # Estimate error
-                error = self.estimate_error(y_full, y_half)
-
+                error = self._estimate_error(y_full, y_half)
+                
                 # Calculate next step size
-                self.adapt_stepsize(error)
-        else:
-            pass
+                step_size = self._adapt_stepsize(error)
 
-    def gauss_algorithm(self, start_time, final_time):
+                # Set inputs
+                self._set_inputs(y_half, current_time)
+        else:
+            steps = int((final_time - start_time) / step_size) + 1
+            time = np.linspace(start_time, final_time, steps)
+            for t in time:
+                # Take a full step
+                self._perform_step(step_size)
+                y = self._get_outputs()
+
+                # Set inputs
+                self._set_inputs(y, t)
+
+                # Store the results
+                self._set_results(t)
+
+    def _gauss(self, start_time, final_time):
+        # TODO : Write the algorithm for Gauss-Seidel co-simulation
         pass
 
-    def simulate(self, initial_states, start_time, final_time, **kw):
-        self.options = kw
-        self.initialize(initial_states)
-        if self.options["communication_method"] == "Jacobi":
-            self.jacobi_algorithm(start_time, final_time)
-        elif self.options["communication_method"] == "Gauss":
-            self.gauss_algorithm(start_time, final_time)
-        else:
-            raise Exception("A non valid communication method was passed")
+    def _set_results(self, current_time):
+        # Set the latest time in the results
+        self.results["time"] += current_time
+
+        # Set the latest outputs in the results
+        for model in self.models:
+            for key in model.output:
+                self.results[key] += model.output[key]
