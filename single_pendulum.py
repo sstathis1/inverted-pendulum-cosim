@@ -66,7 +66,7 @@ class SinglePendulum():
 
     @states.setter
     def states(self, new):
-        states = new
+        self._states = new
 
     @property
     def output(self):
@@ -79,11 +79,14 @@ class SinglePendulum():
 
     @property
     def input(self):
-        return self._input
+        return {"force" : self._input}
 
     @input.setter
     def input(self, new):
         self._input = new
+
+    def setup_experiment(self, macro_step):
+        self.input = lambda t: 0
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
@@ -93,22 +96,12 @@ class SinglePendulum():
         print("Warning: Could not find the specified parameter.")
         return 0
 
-    def ode(self, t, x):
-        """Contains the system of ordinary differential equations for the single-pendulum on a cart.
-
-        Parameters
-        ----------
-
-        t :
-            time (s)
-        x :
-            state [x (m), v (m/s), theta (rad), omega (rad/s)]
-        """
-        delta = self._d0 * self._d1 - (self._d2 * cos(x[2]))**2
-        return  [x[1], 1 / delta * (self._d1 * (self.input(x) - self._b * x[1] + self._d2 * x[3]**2 * sin(x[2]))
-                 - self._d2**2 * cos(x[2]) * sin(x[2]) * self._g), x[3], 
-                 1 / delta * (- self._d2 * cos(x[2]) * (self.input(x) - self._b * x[1] + self._d2 * x[3]**2 * sin(x[2]))
-                 + self._d0 * self._d2 * sin(x[2]) * self._g)]
+    def do_step(self, macro_step):
+        """Does one step when called from the master object and returns True if it succeeded"""
+        final_time = self.time + macro_step
+        solution = solve_ivp(self._ode, [self.time, final_time], self._states, "BDF", rtol=1e-9, atol=1e-9)
+        self.states = [solution.y[0][-1], solution.y[1][-1], solution.y[2][-1], solution.y[3][-1]]
+        return True
 
     def simulate(self, initial_state, final_time, input=lambda t: 0, method="BDF", rtol=1e-9, atol=1e-9):
         """Solves the ode numerically starting from time = 0 
@@ -217,3 +210,20 @@ class SinglePendulum():
         # Save animation in gif format
         if savefig:
             ani.save("single_pendulum.gif", writer='pillow')
+
+    def _ode(self, t, x):
+        """Contains the system of ordinary differential equations for the single-pendulum on a cart.
+
+        Parameters
+        ----------
+
+        t :
+            time (s)
+        x :
+            state [x (m), v (m/s), theta (rad), omega (rad/s)]
+        """
+        delta = self._d0 * self._d1 - (self._d2 * cos(x[2]))**2
+        return  [x[1], 1 / delta * (self._d1 * (self._input(t) - self._b * x[1] + self._d2 * x[3]**2 * sin(x[2]))
+                 - self._d2**2 * cos(x[2]) * sin(x[2]) * self._g), x[3], 
+                 1 / delta * (- self._d2 * cos(x[2]) * (self._input(t) - self._b * x[1] + self._d2 * x[3]**2 * sin(x[2]))
+                 + self._d0 * self._d2 * sin(x[2]) * self._g)]
