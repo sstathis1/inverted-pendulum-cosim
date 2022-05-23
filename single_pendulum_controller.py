@@ -122,7 +122,7 @@ class SinglePendulumController():
         if self._is_discrete:
             self.sampling_time = T
             self._discretize_ss()
-            # self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
+            self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
             self.gain = self._lqr()
             self._measurments = self._Cd.dot(self._states)
             self.feedback = - self.gain.dot(self._states)
@@ -267,14 +267,14 @@ class SinglePendulumController():
                 + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
 
     def _lqr(self):
-        Q = np.diag([500000, 50, 500000, 50])
+        Q = np.diag([5000000000, 0.1, 5000000000, 0.1])
         R = 1
         if self._is_discrete:
             P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
-            return 1 / R * self._Bd.T.dot(P)
+            return linalg.inv(R + self._Bd.T.dot(P).dot(self._Bd)).dot(self._Bd.T).dot(P).dot(self._Ad)
         else:
             P = linalg.solve_continuous_are(self._A, self._B, Q, R)
-            return 1 / R * self._B.T.dot(P)
+            return linalg.inv(R + self._B.T.dot(P).dot(self._B)).dot(self._B.T).dot(P).dot(self._A)
 
     def _is_observable(self):
         """Checks whether the system is observable given matrices A, C
