@@ -79,14 +79,14 @@ class SinglePendulum():
 
     @property
     def input(self):
-        return {"force" : self._input}
+        return {"force" : self._input(self.time)}
 
     @input.setter
     def input(self, new):
-        self._input = new
+        self._input = new[0]
 
     def setup_experiment(self, macro_step):
-        self.input = lambda t: 0
+        self._input = lambda t: 0
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
@@ -184,13 +184,13 @@ class SinglePendulum():
         history_len = 1500
         
         # Time between two points in (s)
-        dt = results["time"][-1] / (50 * results["time"][-1])
+        dt = 0.001
 
         # x, y, time data from results for pendulum and cart
-        x_cart = results["x"]
-        x_pendulum = x_cart + self.get("length_pendulum") * sin(results["theta"])
-        y_pendulum = self.get("length_pendulum") * cos(results["theta"])
-        time = results["time"]
+        x_cart = results["x"][0::10]
+        x_pendulum = x_cart + self.get("length_pendulum") * sin(results["theta"][0::10])
+        y_pendulum = self.get("length_pendulum") * cos(results["theta"])[0::10]
+        time = results["time"][0::10]
 
         # Create the figure
         fig = plt.figure(figsize=(5, 4))

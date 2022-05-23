@@ -46,7 +46,7 @@ class SinglePendulumController():
         If False then the system will be solved continuously from the ode's.
     """
     def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient, 
-                 P=np.ones([4, 4]), Q=np.ones([4, 4]), R=np.ones([2, 2]), is_discrete=True):
+                 P=np.ones([4, 4]), Q=np.zeros([4, 4]), R=np.zeros([2, 2]), is_discrete=True):
         self._name = "single-inverted-pendulum-controller"
         self._is_discrete = is_discrete
         self._states = [None, None, None, None]
@@ -94,7 +94,8 @@ class SinglePendulumController():
 
     @input.setter
     def input(self, new):
-        self._measurments = new(self.time+self.sampling_time)
+        for i in range(len(new)):
+            self._measurments[i] = new[i](self.time+self.sampling_time)
 
     @property
     def output(self):
@@ -121,6 +122,7 @@ class SinglePendulumController():
         if self._is_discrete:
             self.sampling_time = T
             self._discretize_ss()
+            # self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
             self.gain = self._lqr()
             self._measurments = self._Cd.dot(self._states)
             self.feedback = - self.gain.dot(self._states)
@@ -222,13 +224,13 @@ class SinglePendulumController():
         history_len = 1500
         
         # Time between two points in (s)
-        dt = results["time"][-1] / (50 * results["time"][-1])
+        dt = 0.001
 
         # x, y, time data from results for pendulum and cart
-        x_cart = results["x"]
-        x_pendulum = x_cart + self.get("length_pendulum") * sin(results["theta"])
-        y_pendulum = self.get("length_pendulum") * cos(results["theta"])
-        time = results["time"]
+        x_cart = results["x_linear"][0::100]
+        x_pendulum = x_cart + self.get("length_pendulum") * sin(results["theta_linear"][0::100])
+        y_pendulum = self.get("length_pendulum") * cos(results["theta"])[0::100]
+        time = results["time"][0::100]
 
         # Create the figure
         fig = plt.figure(figsize=(5, 4))
@@ -265,7 +267,7 @@ class SinglePendulumController():
                 + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
 
     def _lqr(self):
-        Q = np.diag([5000000, 5000000, 500000, 500000])
+        Q = np.diag([500000, 50, 500000, 50])
         R = 1
         if self._is_discrete:
             P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
@@ -299,7 +301,8 @@ class SinglePendulumController():
 
     def _discretize_ss(self):
         """Creates the discrete-time state-space matrices with the given sampling time"""
-        self._Ad, self._Bd, self._Cd, self._Dd, _ = signal.cont2discrete((self._A, self._B, self._C, self._D), self.sampling_time)
+        self._Ad, self._Bd, self._Cd, self._Dd, _ = signal.cont2discrete((self._A, self._B, self._C, self._D), 
+                                                                          self.sampling_time)
 
     def _predict(self):
         self._predict_states()
