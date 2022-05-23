@@ -244,8 +244,47 @@ class Master(MasterOptions):
                 self._set_results(current_time)
 
     def _gauss(self, start_time, final_time):
-        # TODO : Write the algorithm for Gauss-Seidel co-simulation
-        pass
+        step_size = self.options["step_size"]
+        if self.options["error_controlled"]:
+            # TODO : Write Gauss for error control
+            pass
+        else:
+            steps = int((final_time - start_time) / step_size) + 1
+            time = np.linspace(start_time, final_time, steps)
+            print_intervals = int((final_time - start_time) / 0.1) + 1
+            print_times = np.linspace(start_time, final_time, print_intervals)
+            for t in time:
+                if t in print_times:
+                    print(f"Solving at t = {t}...")
+
+                # Take a step for the first model
+                self.models[0].do_step(step_size)
+
+                # Store the output
+                y = []
+                for key, value in self.models[0].output.items():
+                    y.append(float(value))
+
+                # Interpolate the input for the second model
+                self.models[1].input = self._extrapolate(self.models[1].name, y, t + step_size)
+
+                # Take a step with the second model
+                self.models[1].do_step(step_size)
+
+                # Store the output
+                y = []
+                for key, value in self.models[1].output.items():
+                    y.append(float(value))
+
+                # Extrapolate the input for the first model
+                self.models[0].input = self._extrapolate(self.models[0].name, y, t + step_size)
+                
+                # Update the time for each model
+                for model in self.models:
+                    model.time += step_size
+
+                # Store the results
+                self._set_results(t + step_size)
 
     def _set_results(self, current_time):
         # Set the latest time in the results
