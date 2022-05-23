@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import interp1d
 from timeit import default_timer as timer
+import threading
 
 class MasterOptions():
     """
@@ -107,7 +108,7 @@ class Master(MasterOptions):
 
     def simulate(self, initial_states, start_time, final_time, **kw):
         self.options = kw
-        self.results["time"] = start_time
+        self.results["time"] = [start_time]
         self._initialize(initial_states)
         if self.options["communication_method"] == "Jacobi":
             self._jacobi(start_time, final_time)
@@ -125,19 +126,19 @@ class Master(MasterOptions):
     def _initialize(self, states):
         self._set_states(states)
         self._inputs = {}
-        temp = {"values" : None, "time" : None}
         for model in self.models:
-            self._inputs[model.name] = temp
+            self._inputs[model.name] = {"values" : None, "time" : None}
             model.setup_experiment(self.options["step_size"])
             self._inputs[model.name]["values"] = list(model.input.values())
-            self._inputs[model.name]["time"] = model.time
-            for key in model.output:
-                self.results[key] = model.output[key]    
+            self._inputs[model.name]["time"] = [model.time]
+            for key in model.states:
+                self.results[key] = np.array(model.states[key])
 
     def _get_outputs(self):
         output = []
         for model in self.models:
-            output += list(model.output.values())
+            for key, value in model.output.items():
+                output.append(float(value))
         return output
 
     def _get_states(self):
@@ -160,15 +161,21 @@ class Master(MasterOptions):
             model.input = self._extrapolate(model.name, inputs[i], last_time)
 
     def _extrapolate(self, name, new_inputs, new_time):
-        if len(self._inputs[name]["values"]) <= self.options["order"]:
+        out = []
+        if len(self._inputs[name]["values"]) < len(new_inputs) * (self.options["order"] + 1):
             self._inputs[name]["values"] += new_inputs
-            self._inputs[name]["time"] += new_time
+            self._inputs[name]["time"] += [new_time]
         else:
-            self._inputs[name]["values"].pop(0)
+            for i in range(len(new_inputs)):
+                self._inputs[name]["values"].pop(0)
             self._inputs[name]["time"].pop(0)
             self._inputs[name]["values"] += new_inputs
-            self._inputs[name]["time"] += new_time
-        return interp1d(self._inputs[name]["time"], self._inputs[name]["values"], kind=self.options["order"])
+            self._inputs[name]["time"] += [new_time]
+        for i in range(len(new_inputs)):
+            tmp = self._inputs[name]["values"][i::len(new_inputs)]
+            out.append(interp1d(self._inputs[name]["time"], tmp, kind=len(self._inputs[name]["time"]) - 1, 
+                                fill_value="extrapolate"))
+        return out
 
     def _perform_step(self, step_size):
         if self.options["is_parallel"]:
@@ -179,8 +186,14 @@ class Master(MasterOptions):
                 model.time += step_size
 
     def _perform_step_parallel(self, step_size):
-        # TODO : Write an algorithm to perform the step in parallel for all models using multithreading
-        pass
+        threads = []
+        for model in self.models:
+            t = threading.Thread(target=model.do_step, args=(step_size, ))
+            t.start()
+            threads.append(t)
+
+        for thread in threads:
+            thread.join()
 
     def _jacobi(self, start_time, final_time):
         step_size = self.options["step_size"]
@@ -218,15 +231,17 @@ class Master(MasterOptions):
             steps = int((final_time - start_time) / step_size) + 1
             time = np.linspace(start_time, final_time, steps)
             for t in time:
+                print(f"Begining to solve for time: {t}...")
                 # Take a full step
                 self._perform_step(step_size)
                 y = self._get_outputs()
+                current_time = t + step_size
 
                 # Set inputs
-                self._set_inputs(y, t)
+                self._set_inputs(y, current_time)
 
                 # Store the results
-                self._set_results(t)
+                self._set_results(current_time)
 
     def _gauss(self, start_time, final_time):
         # TODO : Write the algorithm for Gauss-Seidel co-simulation
@@ -234,9 +249,11 @@ class Master(MasterOptions):
 
     def _set_results(self, current_time):
         # Set the latest time in the results
-        self.results["time"] += current_time
+        self.results["time"].append(current_time)
 
         # Set the latest outputs in the results
         for model in self.models:
-            for key in model.output:
-                self.results[key] += model.output[key]
+            for key in model.states|model.output:
+                if key not in self.results:
+                    self.results[key] = np.array((model.states|model.output)[key])
+                self.results[key] = np.append(self.results[key], (model.states|model.output)[key])
