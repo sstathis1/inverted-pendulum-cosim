@@ -17,8 +17,8 @@ model_2 = Controller(1.5, 0.2, 0.4, 0.05, P=P, Q=Q, R=R)
 models = [model_1, model_2]
 
 # Define the master object for the co-simulation
-master = Master(models, step_size=1e-4, order=0, communication_method="Jacobi", 
-                error_controlled=True, is_parallel=False)
+master = Master(models, step_size=5e-4, order=0, communication_method="Jacobi", 
+                error_controlled=False, is_parallel=False)
 
 # Simulate the models
 start_time = 0
