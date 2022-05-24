@@ -187,12 +187,12 @@ class Master(MasterOptions):
                                 fill_value="extrapolate"))
         return out
 
-    def _perform_step(self, step_size):
+    def _perform_step(self, step_size, **kwargs):
         if self.options["is_parallel"]:
             self._perform_step_parallel(step_size)
         else:
             for model in self.models:
-                model.do_step(step_size)
+                model.do_step(step_size, **kwargs)
 
     def _perform_step_parallel(self, step_size):
         threads = []
@@ -222,7 +222,7 @@ class Master(MasterOptions):
                 states = self._get_states()
 
                 # Take a full step
-                self._perform_step(step_size)
+                self._perform_step(step_size, is_adapt=True)
                 y_full = self._get_outputs()
 
                 # Restore states
@@ -230,7 +230,7 @@ class Master(MasterOptions):
 
                 # Take a half step
                 step_size = step_size / 2
-                self._perform_step(step_size)
+                self._perform_step(step_size, is_adapt=True)
                 y_half = self._get_outputs()
                 current_time += step_size
 
@@ -242,7 +242,7 @@ class Master(MasterOptions):
                 self._set_inputs(y_half, current_time)
 
                 # Take another half step
-                self._perform_step(step_size)
+                self._perform_step(step_size, is_adapt=True)
                 y_half = self._get_outputs()
                 current_time += step_size
 
