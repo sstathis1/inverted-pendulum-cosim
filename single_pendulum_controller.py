@@ -123,6 +123,7 @@ class SinglePendulumController():
 
     def setup_experiment(self, step_size):
         if self._is_discrete:
+            self.sampling_time = step_size
             self._discretize_ss(step_size)
             # self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
             self.gain = self._lqr()
@@ -140,9 +141,10 @@ class SinglePendulumController():
         print("Warning: Could not find the specified parameter.")
         return 0
 
-    def do_step(self, step_size):
+    def do_step(self, step_size, is_adapt=False):
         """Does one step when called from the master object and returns True if it succeeded"""
-        self._discretize_ss(step_size)
+        if is_adapt:
+            self._discretize_ss(step_size)
         self._predict()
         self._correct()
         self.output = - self.gain.dot(self._states)
@@ -229,7 +231,7 @@ class SinglePendulumController():
         history_len = 1500
         
         # Time between two points in (s)
-        dt = 0.001
+        dt = self.sampling_time
 
         # x, y, time data from results for pendulum and cart
         x_cart = results["x_linear"][0::100]
