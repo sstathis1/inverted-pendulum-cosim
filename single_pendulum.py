@@ -100,7 +100,7 @@ class SinglePendulum():
         print("Warning: Could not find the specified parameter.")
         return 0
 
-    def do_step(self, macro_step):
+    def do_step(self, macro_step, **kwargs):
         """Does one step when called from the master object and returns True if it succeeded"""
         final_time = self.time + macro_step
         solution = solve_ivp(self._ode, [self.time, final_time], self._states, "BDF", rtol=1e-9, atol=1e-9)
