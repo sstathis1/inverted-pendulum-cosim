@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.interpolate import interp1d
-from timeit import default_timer as timer
 import threading
 
 class MasterOptions():
@@ -62,8 +61,8 @@ class MasterOptions():
     def __init__(self):
         self._options = {
             "local_rtol" : 1e-6,
-            "rtol" : 1e-4,
-            "atol": 1e-4,
+            "rtol" : 1e-6,
+            "atol": 1e-6,
             "step_size" : 0.01,
             "step_max" : 0.1,
             "step_min" : 0.0001,
@@ -104,12 +103,12 @@ class Master(MasterOptions):
         self.options = kw
         self.models = models
         self._check_names()
-        self.results = {}    
+        self.results = {}
 
     def simulate(self, initial_states, start_time, final_time, **kw):
         self.options = kw
         self.results["time"] = [start_time]
-        self._initialize(initial_states)
+        self._initialize(start_time, initial_states)
         if self.options["communication_method"] == "Jacobi":
             self._jacobi(start_time, final_time)
         elif self.options["communication_method"] == "Gauss":
@@ -123,16 +122,26 @@ class Master(MasterOptions):
             self.models[0].name = self.models[0].name + "_0"
             self.models[1].name = self.models[1].name + "_1"
 
-    def _initialize(self, states):
+    def _initialize(self, start_time, states):
         self._set_states(states)
         self._inputs = {}
+        if self.options["error_controlled"]:
+            self.results["error"] = {}
         for model in self.models:
+            model.time = start_time
+            for key in model.output:
+                try:
+                    self.results["error"][key] = [0]
+                except KeyError:
+                    pass
             self._inputs[model.name] = {"values" : None, "time" : None}
             model.setup_experiment(self.options["step_size"])
-            self._inputs[model.name]["values"] = list(model.input.values())
-            self._inputs[model.name]["time"] = [model.time]
+            self._inputs[model.name]["values"] = []
+            self._inputs[model.name]["time"] = []
             for key in model.states:
                 self.results[key] = np.array(model.states[key])
+        y_initial = self._get_outputs()
+        self._set_inputs(y_initial, start_time)
 
     def _get_outputs(self):
         output = []
@@ -144,7 +153,8 @@ class Master(MasterOptions):
     def _get_states(self):
         states = []
         for model in self.models:
-            states += list(model.states.values())
+            for key, value in model.states.items():
+                states.append(float(value))
         return states
 
     def _set_states(self, states):
@@ -164,13 +174,13 @@ class Master(MasterOptions):
         out = []
         if len(self._inputs[name]["values"]) < len(new_inputs) * (self.options["order"] + 1):
             self._inputs[name]["values"] += new_inputs
-            self._inputs[name]["time"] += [new_time]
+            self._inputs[name]["time"].append(new_time)
         else:
             for i in range(len(new_inputs)):
                 self._inputs[name]["values"].pop(0)
             self._inputs[name]["time"].pop(0)
             self._inputs[name]["values"] += new_inputs
-            self._inputs[name]["time"] += [new_time]
+            self._inputs[name]["time"].append(new_time)
         for i in range(len(new_inputs)):
             tmp = self._inputs[name]["values"][i::len(new_inputs)]
             out.append(interp1d(self._inputs[name]["time"], tmp, kind=len(self._inputs[name]["time"]) - 1, 
@@ -183,7 +193,6 @@ class Master(MasterOptions):
         else:
             for model in self.models:
                 model.do_step(step_size)
-                model.time += step_size
 
     def _perform_step_parallel(self, step_size):
         threads = []
@@ -191,22 +200,30 @@ class Master(MasterOptions):
             t = threading.Thread(target=model.do_step, args=(step_size, ))
             t.start()
             threads.append(t)
-
         for thread in threads:
             thread.join()
+
+    def _estimate_error(self, y_full, y_half):
+        order = self.options["order"]
+        error = list(np.abs((np.array(y_half) - np.array(y_full))/(1-2**(order+1))))
+        return error
 
     def _jacobi(self, start_time, final_time):
         step_size = self.options["step_size"]
         if self.options["error_controlled"]:
             current_time = start_time
+            steps = int((final_time - start_time) / step_size) + 1
+            time = np.linspace(start_time, final_time, steps)
+            print_times = time[0::int(0.1 / step_size)]
             while current_time < final_time:
-                # Set states
+                if float(f"{current_time:.5f}") in print_times:
+                    print(f"Solving at t = {current_time:.1f}...")
+                # Get states
                 states = self._get_states()
 
                 # Take a full step
                 self._perform_step(step_size)
                 y_full = self._get_outputs()
-                current_time += step_size
 
                 # Restore states
                 self._set_states(states)
@@ -214,28 +231,52 @@ class Master(MasterOptions):
                 # Take a half step
                 step_size = step_size / 2
                 self._perform_step(step_size)
+                y_half = self._get_outputs()
+                current_time += step_size
+
+                # Update the time for each model
+                for model in self.models:
+                    model.time += step_size
+
+                # Set inputs
+                self._set_inputs(y_half, current_time)
 
                 # Take another half step
                 self._perform_step(step_size)
                 y_half = self._get_outputs()
+                current_time += step_size
+
+                # Update the time for each model
+                for model in self.models:
+                    model.time += step_size
+                    model.restore()
 
                 # Estimate error
                 error = self._estimate_error(y_full, y_half)
-                
-                # Calculate next step size
-                step_size = self._adapt_stepsize(error)
+
+                # Calculate optimal step size
+                step_size = step_size * 2
 
                 # Set inputs
                 self._set_inputs(y_half, current_time)
+
+                # Store the results
+                self._set_results(current_time, error=error)
         else:
             steps = int((final_time - start_time) / step_size) + 1
             time = np.linspace(start_time, final_time, steps)
+            print_times = time[0::int(0.1 / step_size)]
             for t in time:
-                print(f"Begining to solve for time: {t}...")
+                if t in print_times:
+                    print(f"Solving at t = {t:.1f}...")
                 # Take a full step
                 self._perform_step(step_size)
                 y = self._get_outputs()
                 current_time = t + step_size
+
+                # Update the time for each model
+                for model in self.models:
+                    model.time += step_size
 
                 # Set inputs
                 self._set_inputs(y, current_time)
@@ -251,11 +292,10 @@ class Master(MasterOptions):
         else:
             steps = int((final_time - start_time) / step_size) + 1
             time = np.linspace(start_time, final_time, steps)
-            print_intervals = int((final_time - start_time) / 0.1) + 1
-            print_times = np.linspace(start_time, final_time, print_intervals)
+            print_times = time[0::int(0.1 / step_size)]
             for t in time:
                 if t in print_times:
-                    print(f"Solving at t = {t}...")
+                    print(f"Solving at t = {t:.1f}...")
 
                 # Take a step for the first model
                 self.models[0].do_step(step_size)
@@ -276,23 +316,30 @@ class Master(MasterOptions):
                 for key, value in self.models[1].output.items():
                     y.append(float(value))
 
-                # Extrapolate the input for the first model
-                self.models[0].input = self._extrapolate(self.models[0].name, y, t + step_size)
-                
                 # Update the time for each model
                 for model in self.models:
                     model.time += step_size
 
+                # Extrapolate the input for the first model
+                self.models[0].input = self._extrapolate(self.models[0].name, y, t + step_size)
+
                 # Store the results
                 self._set_results(t + step_size)
 
-    def _set_results(self, current_time):
+    def _set_results(self, current_time, error=0):
         # Set the latest time in the results
         self.results["time"].append(current_time)
 
         # Set the latest outputs in the results
+        i = 0
         for model in self.models:
             for key in model.states|model.output:
                 if key not in self.results:
                     self.results[key] = np.array((model.states|model.output)[key])
                 self.results[key] = np.append(self.results[key], (model.states|model.output)[key])
+                # Set the latest error
+                try:
+                    self.results["error"][key].append(error[i])
+                    i += 1
+                except KeyError:
+                    pass
