@@ -50,6 +50,7 @@ class SinglePendulumController():
         self._name = "single-inverted-pendulum-controller"
         self._is_discrete = is_discrete
         self._states = [None, None, None, None]
+        self._measurments = [None, None]
         self._output = 0
         self._time = 0
         self._mc = mass_cart
@@ -62,6 +63,7 @@ class SinglePendulumController():
         self._d1 = self._mp * self._l ** 2 + self._I
         self._d2 = self._mp * self._l
         self._P = P
+        self._P_prev = P
         self._Q = Q
         self._R = R
         self._parameters = {"mass_cart" : self._mc, "mass_pendulum" : self._mp, 
@@ -95,7 +97,7 @@ class SinglePendulumController():
     @input.setter
     def input(self, new):
         for i in range(len(new)):
-            self._measurments[i] = new[i](self.time+self.sampling_time)
+            self._measurments[i] = float(new[i](self.time))
 
     @property
     def output(self):
@@ -112,20 +114,23 @@ class SinglePendulumController():
 
     @states.setter
     def states(self, new):
+        self._P = self._P_prev
         self._states = new
 
     @property
     def kalman_gain(self):
         return self._P.dot(self._Cd.T).dot(linalg.inv(self._Cd.dot(self._P).dot(self._Cd.T) + self._R))
 
-    def setup_experiment(self, T):
+    def setup_experiment(self, step_size):
         if self._is_discrete:
-            self.sampling_time = T
-            self._discretize_ss()
-            self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
+            self._discretize_ss(step_size)
+            # self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
             self.gain = self._lqr()
-            self._measurments = self._Cd.dot(self._states)
             self.feedback = - self.gain.dot(self._states)
+            self.output = self.feedback
+
+    def restore(self):
+        self._P_prev = self._P
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
@@ -135,12 +140,12 @@ class SinglePendulumController():
         print("Warning: Could not find the specified parameter.")
         return 0
 
-    def do_step(self, *args):
+    def do_step(self, step_size):
         """Does one step when called from the master object and returns True if it succeeded"""
+        self._discretize_ss(step_size)
         self._predict()
         self._correct()
         self.output = - self.gain.dot(self._states)
-        self.feedback = self._output
         return True
 
     def simulate(self, initial_state, final_time, input=lambda t: 0, method="RK45", rtol=1e-9, atol=1e-9):
@@ -267,7 +272,7 @@ class SinglePendulumController():
                 + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
 
     def _lqr(self):
-        Q = np.diag([5000000000, 0.1, 5000000000, 0.1])
+        Q = np.diag([500000000, 5, 500000000, 5])
         R = 1
         if self._is_discrete:
             P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
@@ -299,10 +304,10 @@ class SinglePendulumController():
                             [0, 0, 1, 0]])
         self._D = np.zeros([2, 1])
 
-    def _discretize_ss(self):
+    def _discretize_ss(self, step_size):
         """Creates the discrete-time state-space matrices with the given sampling time"""
         self._Ad, self._Bd, self._Cd, self._Dd, _ = signal.cont2discrete((self._A, self._B, self._C, self._D), 
-                                                                          self.sampling_time)
+                                                                          step_size)
 
     def _predict(self):
         self._predict_states()
@@ -310,7 +315,8 @@ class SinglePendulumController():
 
     def _predict_states(self):
         if self._is_discrete:
-            self.states = self._Ad.dot(self._states) + self._Bd.dot(self.feedback)
+            self.feedback = - self.gain.dot(self._states)
+            self._states = self._Ad.dot(self._states) + self._Bd.dot(self.feedback)
         else:
             pass
 
@@ -327,7 +333,7 @@ class SinglePendulumController():
 
     def _correct_states(self, gain):
         if self._is_discrete:
-            self.states = self._states + gain.dot(self._measurments - self._Cd.dot(self._states))
+            self._states = self._states + gain.dot(self._measurments - self._Cd.dot(self._states))
         else:
             pass
 
