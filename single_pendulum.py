@@ -27,6 +27,7 @@ class SinglePendulum():
         self._name = "single-inverted-pendulum"
         self._states = [None, None, None, None]
         self._output = [None, None]
+        self._input = lambda t : 0
         self._time = 0
         self._mc = mass_cart
         self._mp = mass_pendulum
@@ -86,7 +87,10 @@ class SinglePendulum():
         self._input = new[0]
 
     def setup_experiment(self, macro_step):
-        self._input = lambda t: 0
+        self.output = self._C.dot(self._states)
+
+    def restore(self):
+        pass
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
