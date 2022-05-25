@@ -274,7 +274,7 @@ class SinglePendulumController():
                 + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
 
     def _lqr(self):
-        Q = np.diag([500000000, 5, 500000000, 5])
+        Q = np.diag([500, 5, 500, 5])
         R = 1
         if self._is_discrete:
             P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
@@ -298,9 +298,9 @@ class SinglePendulumController():
     def _create_ss_matrices(self):
         """Creates the continuous-time state-space matrices of the linear model"""
         self._A = np.array([[0, 1, 0, 0],
-                            [0, - self._d1 * self._b / self._det, - self._d2**2 * self._g, 0],
+                            [0, - self._d1 * self._b / self._det, - self._d2**2 * self._g / self._det, 0],
                             [0, 0, 0, 1],
-                            [0, self._d2 * self._b, self._d0 * self._d2 * self._g, 0]])
+                            [0, self._d2 * self._b / self._det, self._d0 * self._d2 * self._g / self._det, 0]])
         self._B = np.array([0, self._d1 / self._det, 0, - self._d2 / self._det]).reshape(-1, 1)
         self._C = np.array([[1, 0, 0, 0],
                             [0, 0, 1, 0]])
