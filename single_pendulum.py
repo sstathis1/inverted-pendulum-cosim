@@ -144,12 +144,12 @@ class SinglePendulum():
             Dictionary with keys of the type of output and values the output of the integration.
             e.x. : {"x" : list(), "theta" : list(), "time" : list()}
         """
-        self.input = input
-        solution = solve_ivp(self.ode, [self.time, final_time], initial_state, method, 
+        self.input = [input]
+        solution = solve_ivp(self._ode, [self.time, final_time], initial_state, method, 
                              t_eval=np.linspace(0, final_time, 50*final_time), rtol=rtol, atol=atol)
         results = {"x" : solution.y[0], "theta" : solution.y[2], "v" : solution.y[1], 
                    "omega" : solution.y[3], "time" : solution.t}
-        results["force"] = list(self.input([results["x"], results["v"], results["theta"], results["omega"]])[0])
+        results["force"] = list(self._input([results["x"], results["v"], results["theta"], results["omega"]])[0])
         self.states = [results["x"][-1], results["theta"][-1]]
         self.time = results["time"][-1]
         return results
