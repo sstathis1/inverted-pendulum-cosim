@@ -20,12 +20,11 @@ def main():
     K = gains(mp, mc, l / 2, I, b)
 
     # Simulate the model on it's own
-    res = model_1.simulate([0, 0, 40 * pi / 180, 0], 10, input=lambda x: -K.dot(x))
+    res = model_1.simulate([0, 0, 40 * pi / 180, 0], 3, input=lambda x: -K.dot(x))
 
-    res_nl = model_2.simulate([0, 0, 40 * pi / 180, 0], 10, input=lambda x: -K.dot(x))
+    res_nl = model_2.simulate([0, 0, 40 * pi / 180, 0], 3, input=lambda x: -K.dot(x))
 
     # Create an animation of the results
-    model_1.animate(res, savefig=False)
     model_2.animate(res, savefig=False)
 
     # Plot the angle response
@@ -70,12 +69,12 @@ def gains(mp, mc, l, I, b):
     d1 = mp * l**2 + I
     d2 = mp * l
     p = d1 * d0 - d2**2
-    Q = np.diag([5000000, 5000000, 500000, 500000])
+    Q = np.diag([5000, 5, 500, 5])
     R = 1
     A = np.array([[0, 1, 0, 0],
-                    [0, - d1 * b / p, - d2**2 * g, 0],
-                    [0, 0, 0, 1],
-                    [0, d2 * b, d0 * d2 * g, 0]])
+                  [0, - d1 * b / p, - d2**2 * g / p, 0],
+                  [0, 0, 0, 1],
+                  [0, d2 * b / p, d0 * d2 * g / p, 0]])
     B = np.array([0, d1 / p, 0, - d2 / p]).reshape(-1, 1)
     P = ricatti(A, B, Q, R)
     K = 1 / R * B.T.dot(P)

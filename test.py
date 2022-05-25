@@ -7,23 +7,23 @@ from single_pendulum import SinglePendulum as Pendulum
 from single_pendulum_controller import SinglePendulumController as Controller
 
 # Covariance Matrices
-P = 100 * np.eye(4)
-Q = np.diag([5e-2, 0, 5e-2, 1.5])
-R = np.array([[5e-1, 0], [0, 5e-1]])
+P = 1 * np.eye(4)
+Q = np.diag([0, 0, 1e-5, 0])
+R = np.array([[1e-3, 0], [0, 1e-3]])
 
 # Create the two model objects
-model_1 = Pendulum(1.5, 0.2, 0.4, 0.05)
-model_2 = Controller(1.5, 0.2, 0.4, 0.05, P=P, Q=Q, R=R)
+model_2 = Pendulum(1.5, 0.2, 0.4, 0.05)
+model_1 = Controller(1.5, 0.2, 0.4, 0.05, P=P, Q=Q, R=R)
 models = [model_1, model_2]
 
 # Define the master object for the co-simulation
-master = Master(models, step_size=5e-4, order=0, communication_method="Jacobi", 
+master = Master(models, step_size=1e-3, order=0, communication_method="Jacobi", 
                 error_controlled=False, is_parallel=False)
 
 # Simulate the models
 start_time = 0
-final_time = 5
-initial_states = [0, 0, 15 * pi / 180, 0, 0, 0, 15 * pi / 180, 0]
+final_time = 7
+initial_states = [0, 0, 45 * pi / 180, 0, 0, 0, 45 * pi / 180, 0]
 
 # Start the timer
 start_timer = time.perf_counter()
