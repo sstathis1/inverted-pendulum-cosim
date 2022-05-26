@@ -26,6 +26,14 @@ class SinglePendulumController():
     friction_coefficient :
         Defines the friction coefficient between the cart and the ground
 
+    estimation_method :
+        Defines how the controller will estimate the unkown states
+        
+        Options :
+        "current" : uses a current estimator
+        "predictive" : uses a predictive estimator
+        "kalman" : uses kalman filter. Must also provide P, Q, R covariance matrices
+
     P :
         Covariance matrix of states at time 0.
         Use Gaussian white noise for optimal estimator
@@ -40,17 +48,14 @@ class SinglePendulumController():
         Covariance matrix of measurment error.
         Constant white noise.
         Default : zero covariances, deterministic measurments
-
-    is_discrete :
-        If True then the system will be discretized with a sampling period T
-        If False then the system will be solved continuously from the ode's.
     """
-    def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient, 
-                 P=np.ones([4, 4]), Q=np.zeros([4, 4]), R=np.zeros([2, 2]), is_discrete=True):
+    def __init__(self, mass_cart, mass_pendulum, length_pendulum, friction_coefficient,
+                 estimation_method="current", P=np.ones([4, 4]), Q=np.zeros([4, 4]), 
+                 R=np.zeros([2, 2])):
         self._name = "single-inverted-pendulum-controller"
-        self._is_discrete = is_discrete
         self._states = [None, None, None, None]
         self._measurments = [None, None]
+        self._estimation_method = estimation_method
         self._output = 0
         self._time = 0
         self._mc = mass_cart
@@ -62,6 +67,7 @@ class SinglePendulumController():
         self._d0 = self._mc + self._mp
         self._d1 = self._mp * self._l ** 2 + self._I
         self._d2 = self._mp * self._l
+        self._det = self._d1 * self._d0 - self._d2**2
         self._P = P
         self._P_prev = P
         self._Q = Q
@@ -69,7 +75,6 @@ class SinglePendulumController():
         self._parameters = {"mass_cart" : self._mc, "mass_pendulum" : self._mp, 
                             "length_pendulum" : 2 * self._l, "inertia_pendulum" : self._I,
                             "friction_coefficient" : self._b}
-        self._det = self._d1 * self._d0 - self._d2**2
         self._create_ss_matrices()
         if not self._is_observable():
             raise Exception("The system is not observable with the given measurments and canot be estimated.")
@@ -122,16 +127,29 @@ class SinglePendulumController():
         return self._P.dot(self._Cd.T).dot(linalg.inv(self._Cd.dot(self._P).dot(self._Cd.T) + self._R))
 
     def setup_experiment(self, step_size):
-        if self._is_discrete:
-            self.sampling_time = step_size
-            self._discretize_ss(step_size)
-            # self._Q = self._Ad.dot(self._Q).dot(self._Ad.T)
-            self.gain = self._lqr()
-            self.feedback = - self.gain.dot(self._states)
-            self.output = self.feedback
+        """ Initializes the experiment for co-simulation
+        Will be called from the Master object.
+
+        Parameters :
+        ------------
+        step_size : 
+            The step used for co-simulation. Is also equal to the sampling time
+        """
+        self.sampling_time = step_size
+        self._discretize_ss(step_size)
+
+        # Compute the optimal gain from discrete LQR
+        self.gain = self._lqr()
+        self.feedback = - self.gain.dot(self._states)
+        self.output = self.feedback
+
+        # Compute the predictive estimator gain using pole placement
+        poles = [0.2, 0.1, 0.1 + 0.1j, 0.1 - 0.1j]
+        self._L = control.place(self._Ad.T, self._Cd.T, poles).T
 
     def restore(self):
-        self._P_prev = self._P
+        if self._estimation_method == "kalman":
+            self._P_prev = self._P
 
     def get(self, string):
         """Returns the value of the specified parameter via string if it exists else 0"""
@@ -147,6 +165,7 @@ class SinglePendulumController():
             self._discretize_ss(step_size)
         self._predict()
         self._correct()
+        self.feedback = - self.gain.dot(self._states)
         self.output = - self.gain.dot(self._states)
         return True
 
@@ -231,7 +250,7 @@ class SinglePendulumController():
         history_len = 1500
         
         # Time between two points in (s)
-        dt = self.sampling_time
+        dt = 0.001
 
         # x, y, time data from results for pendulum and cart
         x_cart = results["x_linear"][0::100]
@@ -274,14 +293,16 @@ class SinglePendulumController():
                 + self._d0 * self._d2 * self._g / self._det * x[2] - self._d2 / self._det * self.u(x)]
 
     def _lqr(self):
+        """Solves the discrete algebraic ricatti equation for optimal LQR control
+        
+        Returns :
+        ---------
+        K : Gain Matrix (u = -K * x)
+        """
         Q = np.diag([500, 5, 500, 5])
         R = 1
-        if self._is_discrete:
-            P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
-            return linalg.inv(R + self._Bd.T.dot(P).dot(self._Bd)).dot(self._Bd.T).dot(P).dot(self._Ad)
-        else:
-            P = linalg.solve_continuous_are(self._A, self._B, Q, R)
-            return linalg.inv(R + self._B.T.dot(P).dot(self._B)).dot(self._B.T).dot(P).dot(self._A)
+        P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
+        return linalg.inv(R + self._Bd.T.dot(P).dot(self._Bd)).dot(self._Bd.T).dot(P).dot(self._Ad)
 
     def _is_observable(self):
         """Checks whether the system is observable given matrices A, C
@@ -312,36 +333,51 @@ class SinglePendulumController():
                                                                           step_size)
 
     def _predict(self):
+        """Makes a prediction for the states and covariances if kalman filter is used for estimation"""
         self._predict_states()
-        self._predict_covariance()
+        if self._estimation_method == "kalman":
+            self._predict_covariance()
 
     def _predict_states(self):
-        if self._is_discrete:
-            self.feedback = - self.gain.dot(self._states)
-            self._states = self._Ad.dot(self._states) + self._Bd.dot(self.feedback)
+        """Predicts the states using the linear model"""
+        self.feedback = - self.gain.dot(self._states)
+        if self._estimation_method == "predictive":
+            self._states = (self._Ad.dot(self._states) + self._Bd.dot(self.feedback) 
+                           + self._L.dot(self._measurments - self._Cd.dot(self._states)))
         else:
-            pass
+            self._states = self._Ad.dot(self._states) + self._Bd.dot(self.feedback)
 
     def _predict_covariance(self):
-        if self._is_discrete:
-            self._P = self._Ad.dot(self._P).dot(self._Ad.T) + self._Q
-        else:
-            pass
+        """Predicts the state covariance matrix if kalman filter is used for estimation"""
+        self._P = self._Ad.dot(self._P).dot(self._Ad.T) + self._Q
 
     def _correct(self):
-        gain = self.kalman_gain
-        self._correct_states(gain)
-        self._correct_covariance(gain)
+        """Corrects the states and covariances if kalman filter is used for estimation"""
+        if self._estimation_method == "kalman":
+            gain = self.kalman_gain
+            self._correct_covariance(gain)
+            self._correct_states(gain)
+        elif self._estimation_method == "predictive":
+            pass
+        elif self._estimation_method == "current":
+            gain = np.linalg.inv(self._Ad).dot(self._L)
+            self._correct_states(gain)
+        else:
+            raise Exception("Estimation method provided is not a valid one \n"
+                            "Options: 1.'kalman', 2.'current', 3.'predictive'")
 
     def _correct_states(self, gain):
-        if self._is_discrete:
-            self._states = self._states + gain.dot(self._measurments - self._Cd.dot(self._states))
-        else:
-            pass
+        """Corrects the states based on the measurments taken and the appropriate gain
+        
+        Parameters :
+        ------------
+
+        gain :
+            The gain used for estimating. ->  L*(z - C*x)
+        """
+        self._states = self._states + gain.dot(self._measurments - self._Cd.dot(self._states))
 
     def _correct_covariance(self, gain):
-        if self._is_discrete:
-            self._P = ((np.eye(4) - gain.dot(self._Cd)).dot(self._P).dot((np.eye(4) - gain.dot(self._Cd)).T) 
-                       + gain.dot(self._R).dot(gain.T))
-        else:
-            pass
+        """Corrects the state covariance matrix if kalman filter is used for estimation"""
+        self._P = ((np.eye(4) - gain.dot(self._Cd)).dot(self._P).dot((np.eye(4) - gain.dot(self._Cd)).T) 
+                    + gain.dot(self._R).dot(gain.T))
