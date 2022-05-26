@@ -106,6 +106,27 @@ class Master(MasterOptions):
         self.results = {}
 
     def simulate(self, initial_states, start_time, final_time, **kw):
+        """Simulates the master object using explicit co-simulation
+        
+        Parameters :
+        ------------
+        initial_states :
+            A list containing the initial conditions for both models
+        
+        start_time :
+            The starting time for the simulation (s)
+        
+        final_time :
+            The final time for the simulation (s)
+
+        **kw :
+            keywords containing the master options to override
+
+        Returns :
+        ---------
+            The results of the simulation in a dictionary with keys the name of the variables
+            and values of lists containing the results of the models in [start_time, final_time] 
+        """
         self.options = kw
         self.results["time"] = [start_time]
         self._initialize(start_time, initial_states)
@@ -118,11 +139,22 @@ class Master(MasterOptions):
         return self.results
 
     def _check_names(self):
+        """Checks if two models share the same name and numbers them"""
         if self.models[0].name == self.models[1].name:
             self.models[0].name = self.models[0].name + "_0"
             self.models[1].name = self.models[1].name + "_1"
 
     def _initialize(self, start_time, states):
+        """Initializes the co-simulation
+        
+        Parameters :
+        ------------
+        start_time :
+            The starting time for the co-simulation (s)
+
+        states :
+            A list containing the initial states of all models at t = start_time
+        """
         self._set_states(states)
         self._inputs = {}
         if self.options["error_controlled"]:
@@ -144,6 +176,7 @@ class Master(MasterOptions):
         self._set_inputs(y_initial, start_time)
 
     def _get_outputs(self):
+        """Returs a list containing the outputs of all model at a time instant"""
         output = []
         for model in self.models:
             for key, value in model.output.items():
@@ -151,6 +184,7 @@ class Master(MasterOptions):
         return output
 
     def _get_states(self):
+        """Returns a list containing the states of all models at a time instant"""
         states = []
         for model in self.models:
             for key, value in model.states.items():
@@ -158,12 +192,20 @@ class Master(MasterOptions):
         return states
 
     def _set_states(self, states):
+        """Set's the states for each model with the given new states
+        
+        Parameters :
+        ------------
+        states :
+            A list containing the states of all models
+        """
         i = 0
         for model in self.models:
             model.states = states[i:len(model.states) + i]
             i += len(model.states)
 
     def _set_inputs(self, last_inputs, last_time):
+        """Set's the inputs of all models at a specific time instant"""
         inputs = [None, None]
         inputs[0] = last_inputs[len(self.models[0].output)::]
         inputs[1] = last_inputs[0:len(self.models[0].output)]
@@ -171,6 +213,23 @@ class Master(MasterOptions):
             model.input = self._extrapolate(model.name, inputs[i], last_time)
 
     def _extrapolate(self, name, new_inputs, new_time):
+        """Extrapolates or Interpolates the inputs for each model
+        
+        Parameters :
+        ------------
+        name :
+            The name of the model we want to extrapolate
+
+        new_inputs :
+            A list containing the values we want to add to the inputs
+
+        new_time :
+            The time at which the new_inputs belong (s)
+
+        Returns :
+        ---------
+            A list containing the langrange polynomials of order equal to the order specified in settings
+        """
         out = []
         if len(self._inputs[name]["values"]) < len(new_inputs) * (self.options["order"] + 1):
             self._inputs[name]["values"] += new_inputs
@@ -188,6 +247,19 @@ class Master(MasterOptions):
         return out
 
     def _perform_step(self, step_size, **kwargs):
+        """
+        Performs a Jacobi step either in parallel using multithreading 
+        if is_parallel option is True or in serial.
+        
+        Parameters :
+        ------------
+        step_size :
+            The current step_size to perform the step for (s)
+
+        **kwargs :
+            Aditional kwargs that may be required by a model in the model.do_step method
+
+        """
         if self.options["is_parallel"]:
             self._perform_step_parallel(step_size)
         else:
@@ -195,6 +267,13 @@ class Master(MasterOptions):
                 model.do_step(step_size, **kwargs)
 
     def _perform_step_parallel(self, step_size):
+        """Performs a Jacobi step in parallel using multithreading
+        
+        Parameters :
+        ------------
+        step_size :
+            The size of the step that will be simulated (s)
+        """
         threads = []
         for model in self.models:
             t = threading.Thread(target=model.do_step, args=(step_size, ))
@@ -204,11 +283,35 @@ class Master(MasterOptions):
             thread.join()
 
     def _estimate_error(self, y_full, y_half):
+        """Estimates the current local error using richardson extrapolation
+        
+        Parameters :
+        ------------
+        y_full :
+            A list containing the outputs of all models performed with a full step
+
+        y_half :
+            A list containing the outputs of all models performed with two half steps
+
+        Returns :
+        ---------
+            The current time local error due to co-simulation
+        """
         order = self.options["order"]
         error = list(np.abs((np.array(y_half) - np.array(y_full))/(1-2**(order+1))))
         return error
 
     def _jacobi(self, start_time, final_time):
+        """Performs the simulation from start_time to final_time using the Jacobi algorithm for data exchange
+        
+        Parameters :
+        ------------
+        start_time :
+            The starting time of the simulation (s)
+
+        final_time :
+            The final time of the simulation (s)
+        """
         step_size = self.options["step_size"]
         if self.options["error_controlled"]:
             current_time = start_time
@@ -285,10 +388,123 @@ class Master(MasterOptions):
                 self._set_results(current_time)
 
     def _gauss(self, start_time, final_time):
+        """Performs the simulation from start_time to final_time using the Gauss-Seidel algorithm for data exchange
+        
+        Parameters :
+        ------------
+        start_time :
+            The starting time of the simulation (s)
+
+        final_time :
+            The final time of the simulation (s)
+        """
         step_size = self.options["step_size"]
         if self.options["error_controlled"]:
-            # TODO : Write Gauss for error control
-            pass
+            current_time = start_time
+            steps = int((final_time - start_time) / step_size) + 1
+            time = np.linspace(start_time, final_time, steps)
+            print_times = time[0::int(0.1 / step_size)]
+            while current_time < final_time:
+                if float(f"{current_time:.5f}") in print_times:
+                    print(f"Solving at t = {current_time:.1f}...")
+
+                # Get states
+                states = self._get_states()
+
+                # Take a step for the first model
+                self.models[0].do_step(step_size, is_adapt=True)
+
+                # Store the output
+                y1 = []
+                for key, value in self.models[0].output.items():
+                    y1.append(float(value))
+
+                # Interpolate the input for the second model
+                self.models[1].input = self._extrapolate(self.models[1].name, y1, current_time + step_size)
+
+                # Take a step with the second model
+                self.models[1].do_step(step_size, is_adapt=True)
+
+                # Store the output
+                y2 = []
+                for key, value in self.models[1].output.items():
+                    y2.append(float(value))
+
+                # Extrapolate the input for the first model
+                self.models[0].input = self._extrapolate(self.models[0].name, y2, current_time + step_size)
+
+                y_full = y1 + y2
+
+                # Restore states
+                self._set_states(states)
+
+                # Take a half step with the first model
+                step_size = step_size / 2
+                self.models[0].do_step(step_size, is_adapt=True)
+
+                # Store the output
+                y1 = []
+                for key, value in self.models[0].output.items():
+                    y1.append(float(value))
+
+                # Interpolate the input for the second model
+                self.models[1].input = self._extrapolate(self.models[1].name, y1, current_time + step_size)
+
+                # Take a half step with the second model
+                self.models[1].do_step(step_size, is_adapt=True)
+
+                # Store the output
+                y2 = []
+                for key, value in self.models[1].output.items():
+                    y2.append(float(value))
+
+                # Extrapolate the input for the first model
+                self.models[0].input = self._extrapolate(self.models[0].name, y2, current_time + step_size)
+
+                # Update the time for each model
+                for model in self.models:
+                    model.time += step_size
+
+                current_time += step_size
+
+                # Take another half step with the first model
+                self.models[0].do_step(step_size, is_adapt=True)
+
+                # Store the output
+                y1 = []
+                for key, value in self.models[0].output.items():
+                    y1.append(float(value))
+
+                # Interpolate the input for the second model
+                self.models[1].input = self._extrapolate(self.models[1].name, y1, current_time + step_size)
+
+                # Take another half step with the second model
+                self.models[1].do_step(step_size, is_adapt=True)
+
+                # Store the output
+                y2 = []
+                for key, value in self.models[1].output.items():
+                    y2.append(float(value))
+
+                # Extrapolate the input for the first model
+                self.models[0].input = self._extrapolate(self.models[0].name, y2, current_time + step_size)
+
+                y_half = y1 + y2
+
+                current_time += step_size
+                # Update the time for each model
+                for model in self.models:
+                    model.time += step_size
+                    model.restore()
+
+                # Estimate error
+                error = self._estimate_error(y_full, y_half)
+
+                # Calculate optimal step size
+                step_size = step_size * 2
+
+                # Store the results
+                self._set_results(current_time, error=error)
         else:
             steps = int((final_time - start_time) / step_size) + 1
             time = np.linspace(start_time, final_time, steps)
@@ -327,6 +543,19 @@ class Master(MasterOptions):
                 self._set_results(t + step_size)
 
     def _set_results(self, current_time, error=0):
+        """
+        Appends to the results the current_time and the current error if error_controlled option is set to True
+        and also appends for each model the value of each state, output
+
+        Parameters :
+        ------------
+        current_time :
+            The time to append to the results (s)
+
+        error :
+            The current error computed using Richardson extrapolation if error_controlled option is set to True
+            Default : 0 (error_controlled = False)
+        """
         # Set the latest time in the results
         self.results["time"].append(current_time)
 
