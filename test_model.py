@@ -1,14 +1,15 @@
 from single_pendulum_controller import SinglePendulumController
 from single_pendulum import SinglePendulum
-from scipy.linalg import solve_continuous_are as ricatti
+from scipy.linalg import solve_discrete_are as ricatti
+from scipy.signal import cont2discrete
 import numpy as np
 from numpy import cos, sin 
 from math import pi
 import matplotlib.pyplot as plt
 
 def main():
-    model_1 = SinglePendulumController(1, 0.4, 0.4, 0.05)
-    model_2 = SinglePendulum(1, 0.4, 0.4, 0.05)
+    model_1 = SinglePendulumController(1.5, 0.2, 0.4, 0.05)
+    model_2 = SinglePendulum(1.5, 0.2, 0.4, 0.05)
     mp = model_1.get("mass_pendulum")
     mc = model_1.get("mass_cart")
     l = model_1.get("length_pendulum")
@@ -20,9 +21,9 @@ def main():
     K = gains(mp, mc, l / 2, I, b)
 
     # Simulate the model on it's own
-    res = model_1.simulate([0, 0, 40 * pi / 180, 0], 3, input=lambda x: -K.dot(x))
+    res = model_1.simulate([0, 0, 57.5 * pi / 180, 0], 4, input=lambda x: -K.dot(x))
 
-    res_nl = model_2.simulate([0, 0, 40 * pi / 180, 0], 3, input=lambda x: -K.dot(x))
+    res_nl = model_2.simulate([0, 0, 57.5 * pi / 180, 0], 4, input=lambda x: -K.dot(x))
 
     # Create an animation of the results
     model_2.animate(res, savefig=False)
@@ -69,13 +70,18 @@ def gains(mp, mc, l, I, b):
     d1 = mp * l**2 + I
     d2 = mp * l
     p = d1 * d0 - d2**2
-    Q = np.diag([5000, 5, 500, 5])
+    Q = np.diag([500, 5, 500, 5])
     R = 1
     A = np.array([[0, 1, 0, 0],
                   [0, - d1 * b / p, - d2**2 * g / p, 0],
                   [0, 0, 0, 1],
                   [0, d2 * b / p, d0 * d2 * g / p, 0]])
     B = np.array([0, d1 / p, 0, - d2 / p]).reshape(-1, 1)
+    C = np.array([[1, 0, 0, 0],
+                            [0, 0, 1, 0]])
+    D = np.zeros([2, 1])
+    dt = 1e-3
+    A, B, C, D, _ = cont2discrete((A, B, C, D), dt)
     P = ricatti(A, B, Q, R)
     K = 1 / R * B.T.dot(P)
     return K

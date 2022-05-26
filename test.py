@@ -6,24 +6,19 @@ from master import Master
 from single_pendulum import SinglePendulum as Pendulum
 from single_pendulum_controller import SinglePendulumController as Controller
 
-# Covariance Matrices
-P = 1 * np.eye(4)
-Q = np.diag([0, 0, 1e-5, 0])
-R = np.array([[1e-3, 0], [0, 1e-3]])
-
 # Create the two model objects
-model_2 = Pendulum(1.5, 0.2, 0.4, 0.05)
-model_1 = Controller(1.5, 0.2, 0.4, 0.05, P=P, Q=Q, R=R)
+model_1 = Pendulum(1.5, 0.2, 0.4, 0.05)
+model_2 = Controller(1.5, 0.2, 0.4, 0.05, estimation_method="current")
 models = [model_1, model_2]
 
 # Define the master object for the co-simulation
-master = Master(models, step_size=1e-3, order=0, communication_method="Jacobi", 
-                error_controlled=False, is_parallel=False)
+master = Master(models, step_size=1e-3, order=0, communication_method="Gauss", 
+                error_controlled=True, is_parallel=False)
 
 # Simulate the models
 start_time = 0
-final_time = 7
-initial_states = [0, 0, 45 * pi / 180, 0, 0, 0, 45 * pi / 180, 0]
+final_time = 5
+initial_states = [0, 0, 57.5 * pi / 180, 0, 0, 0, 57.5 * pi / 180, 0]
 
 # Start the timer
 start_timer = time.perf_counter()
@@ -37,7 +32,7 @@ model_1.animate(res, savefig=False)
 
 # Plot the angle response
 plt.figure(figsize=[6, 4], dpi=200)
-plt.plot(res["time"], res["theta_linear"] * 180 / pi, label="linear")
+plt.step(res["time"], res["theta_linear"] * 180 / pi, label="linear")
 plt.plot(res["time"], res["theta"] * 180 / pi, label="non-linear")
 plt.legend()
 plt.ylabel("theta (deg)")
@@ -49,7 +44,7 @@ plt.show()
 
 # Plot the position response
 plt.figure(figsize=[6, 4], dpi=200)
-plt.plot(res["time"], res["x_linear"], label="linear")
+plt.step(res["time"], res["x_linear"], label="linear")
 plt.plot(res["time"], res["x"], label="non-linear")
 plt.legend()
 plt.ylabel("x (m)")
@@ -61,7 +56,7 @@ plt.show()
 
 # Plot the velocity response
 plt.figure(figsize=[6, 4], dpi=200)
-plt.plot(res["time"], res["v_linear"], label="linear")
+plt.step(res["time"], res["v_linear"], label="linear")
 plt.plot(res["time"], res["v"], label="non-linear")
 plt.legend()
 plt.ylabel("v (m/s)")
@@ -73,7 +68,7 @@ plt.show()
 
 # Plot the rotational velocity response
 plt.figure(figsize=[6, 4], dpi=200)
-plt.plot(res["time"], res["omega_linear"], label="linear")
+plt.step(res["time"], res["omega_linear"], label="linear")
 plt.plot(res["time"], res["omega"], label="non-linear")
 plt.legend()
 plt.ylabel("omega (rad/s)")
@@ -106,7 +101,7 @@ plt.show()
 # Plot the estimated error for angle of pendulum
 plt.figure(figsize=[6, 4], dpi=200)
 plt.plot(res["time"], res["error"]["theta"])
-plt.ylabel("$le^{θ}$ (m)")
+plt.ylabel("$le^{θ}$ (rad)")
 plt.xlabel("time (s)")
 plt.xlim(start_time, res["time"][-1])
 plt.title("Estimated local error of angle of pendulum (θ)")
@@ -116,7 +111,7 @@ plt.show()
 # Plot the estimated error for force by controller
 plt.figure(figsize=[6, 4], dpi=200)
 plt.plot(res["time"], res["error"]["force"])
-plt.ylabel("$le^f$ (m)")
+plt.ylabel("$le^f$ (N)")
 plt.xlabel("time (s)")
 plt.xlim(start_time, res["time"][-1])
 plt.title("Estimated local error of force from controller (f)")
