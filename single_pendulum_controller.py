@@ -138,6 +138,11 @@ class SinglePendulumController():
         self.sampling_time = step_size
         self._discretize_ss(step_size)
 
+        # Compute the discretized covariances
+        if self._estimation_method == "kalman":
+            self._Q = self._Q * self.sampling_time
+            self._R = self._R / self.sampling_time
+
         # Compute the optimal gain from discrete LQR
         self.gain = self._lqr()
         self.feedback = - self.gain.dot(self._states)
@@ -299,7 +304,7 @@ class SinglePendulumController():
         ---------
         K : Gain Matrix (u = -K * x)
         """
-        Q = np.diag([500, 5, 500, 5])
+        Q = np.diag([500, 50, 500, 50])
         R = 1
         P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
         return linalg.inv(R + self._Bd.T.dot(P).dot(self._Bd)).dot(self._Bd.T).dot(P).dot(self._Ad)
