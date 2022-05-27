@@ -6,19 +6,24 @@ from master import Master
 from single_pendulum import SinglePendulum as Pendulum
 from single_pendulum_controller import SinglePendulumController as Controller
 
+# Covariance Matrices
+P = 10 * np.eye(4)
+Q = np.diag([0, 350, 0, 350])
+R = np.diag([1e-4, 1e-4])
+
 # Create the two model objects
-model_1 = Pendulum(1.5, 0.2, 0.4, 0.05)
-model_2 = Controller(1.5, 0.2, 0.4, 0.05, estimation_method="current")
+model_1 = Pendulum(1.5, 0.5, 0.6, 0.05)
+model_2 = Controller(1.5, 0.5, 0.6, 0.05, estimation_method="kalman", P=P, Q=Q, R=R)
 models = [model_1, model_2]
 
 # Define the master object for the co-simulation
 master = Master(models, step_size=1e-3, order=0, communication_method="Gauss", 
-                error_controlled=True, is_parallel=False)
+                error_controlled=False, is_parallel=False)
 
 # Simulate the models
 start_time = 0
 final_time = 5
-initial_states = [0, 0, 57.5 * pi / 180, 0, 0, 0, 57.5 * pi / 180, 0]
+initial_states = [0, 0, 55 * pi / 180, 0, 0, 0, 55 * pi / 180, 0]
 
 # Start the timer
 start_timer = time.perf_counter()
