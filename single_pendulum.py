@@ -72,7 +72,7 @@ class SinglePendulum():
     @property
     def output(self):
         self._output = self._C.dot(self._states)
-        return {"x" : self._output[0], "theta" : self._output[1]}
+        return {"x" : self._output[0] + np.random.normal(0, 1e-2), "theta" : self._output[1]+ np.random.normal(0, 1e-2)}
 
     @output.setter
     def output(self, new):
