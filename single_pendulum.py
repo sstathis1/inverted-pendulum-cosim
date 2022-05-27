@@ -86,7 +86,7 @@ class SinglePendulum():
     def input(self, new):
         self._input = new[0]
 
-    def setup_experiment(self, macro_step):
+    def setup_experiment(self, *args):
         self.output = self._C.dot(self._states)
 
     def restore(self):
@@ -142,7 +142,7 @@ class SinglePendulum():
 
         results :
             Dictionary with keys of the type of output and values the output of the integration.
-            e.x. : {"x" : list(), "theta" : list(), "time" : list()}
+            e.x. : {"x" : list(), "theta" : list(), "v" : list(), "omega" : list(), time" : list()}
         """
         self.input = [input]
         solution = solve_ivp(self._ode, [self.time, final_time], initial_state, method, 
@@ -150,7 +150,7 @@ class SinglePendulum():
         results = {"x" : solution.y[0], "theta" : solution.y[2], "v" : solution.y[1], 
                    "omega" : solution.y[3], "time" : solution.t}
         results["force"] = list(self._input([results["x"], results["v"], results["theta"], results["omega"]])[0])
-        self.states = [results["x"][-1], results["theta"][-1]]
+        self.states = [results["x"][-1], results["v"][-1], results["theta"][-1], results["omega"][-1]]
         self.time = results["time"][-1]
         return results
 
