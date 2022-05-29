@@ -97,7 +97,7 @@ class SinglePendulumController():
 
     @property
     def input(self):
-        return {"x_measured" : self._measurments[0], "v_measured" : self._measurments[1]}
+        return {"x_measured" : self._measurments[0], "theta_measured" : self._measurments[1]}
 
     @input.setter
     def input(self, new):
@@ -153,6 +153,7 @@ class SinglePendulumController():
         self._L = control.place(self._Ad.T, self._Cd.T, poles).T
 
     def restore(self):
+        """Restores the previous state covariance matrix to the latest"""
         if self._estimation_method == "kalman":
             self._P_prev = self._P
 
