@@ -6,7 +6,7 @@ from numpy import cos, sin
 from scipy.integrate import solve_ivp
 
 class DoublePendulum():
-    """Initializes a single inverted pendulum object
+    """Initializes a double inverted pendulum object
 
     Parameters
     ----------
@@ -92,7 +92,7 @@ class DoublePendulum():
     @property
     def output(self):
         self._output = self._C.dot(self._states)
-        return {"x" : self._output[0], "theta_1" : self._output[1], "theta_2" : self._output[2]}
+        return {"x" : self._output[0] + np.random.normal(0, 1e-2), "theta_1" : self._output[1]+ np.random.normal(0, 1e-2), "theta_2" : self._output[2]+ np.random.normal(0, 1e-2)}
 
     @output.setter
     def output(self, new):
@@ -100,7 +100,7 @@ class DoublePendulum():
 
     @property
     def input(self):
-        return {"force" : self._input(self.time)}
+        return {"force_non_linear" : self._input(self.time)}
 
     @input.setter
     def input(self, new):
@@ -136,7 +136,7 @@ class DoublePendulum():
         ----------
 
         initial_state :
-            Defines the initial state vector of type list [x (m), v (m/s), theta (rad), omega (rad/s)]
+            Defines the initial state vector of type list [x (m), v (m/s), theta_1 (rad), omega_1 (rad/s), theta_2 (rad), omega_2 (rad/s)]
 
         final_time :
             Defines the end time of the simulation 
@@ -166,9 +166,10 @@ class DoublePendulum():
             e.x. : {"x" : list(), "theta_1" : list(), "theta_2" : list(), "v" : list(), 
                     "omega_1" : list(), "omega_2" : list(), time" : list()}
         """
-        self.input = [input]
+        K = np.array([[7.07106781, 15.31417971, -504.15662972, -14.69035815, 626.03811484, 97.93661876]])
+        self.input = [lambda x : -K.dot(x)]
         solution = solve_ivp(self._ode, [self.time, final_time], initial_state, method, 
-                             t_eval=np.linspace(0, final_time, 50*final_time), rtol=rtol, atol=atol)
+                             t_eval=np.linspace(0, final_time, int(50*final_time)), rtol=rtol, atol=atol)
         results = {"x" : solution.y[0], "theta_1" : solution.y[2], "theta_2" : solution.y[4], 
                    "v" : solution.y[1], "omega_1" : solution.y[3], "omega_2" : solution.y[5], "time" : solution.t}
         # results["force"] = list(self._input([results["x"], results["v"], results["theta_1"], 
@@ -179,7 +180,7 @@ class DoublePendulum():
         return results
 
     def animate(self, results, savefig=True):
-        """Animates the solution of the pendulum on the cart using matplotlib
+        """Animates the solution of the double pendulum on the cart using matplotlib
         
         Input
         -----
@@ -220,17 +221,17 @@ class DoublePendulum():
         dt = 0.001
 
         # x, y, time data from results for pendulum and cart
-        x_cart = results["x"]
-        x_pendulum_1 = x_cart + self.get("length_pendulum_1") * sin(results["theta_1"])
-        y_pendulum_1 = self.get("length_pendulum_1") * cos(results["theta_1"])
-        x_pendulum_2 = x_pendulum_1 + self.get("length_pendulum_2") * sin(results["theta_2"])
-        y_pendulum_2 = y_pendulum_1 + self.get("length_pendulum_2") * cos(results["theta_2"])
-        time = results["time"]
+        x_cart = results["x"][0::10]
+        x_pendulum_1 = x_cart + self.get("length_pendulum_1") * sin(results["theta_1"][0::10])
+        y_pendulum_1 = self.get("length_pendulum_1") * cos(results["theta_1"][0::10])
+        x_pendulum_2 = x_pendulum_1 + self.get("length_pendulum_2") * sin(results["theta_2"][0::10])
+        y_pendulum_2 = y_pendulum_1 + self.get("length_pendulum_2") * cos(results["theta_2"][0::10])
+        time = results["time"][0::10]
 
         # Create the figure
         fig = plt.figure(figsize=(5, 4))
         ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_pendulum_2), 0.2 + np.max(x_pendulum_2)), 
-                             ylim=(- 0.5 + np.min(x_pendulum_2), 0.2 + np.max(x_pendulum_2)))
+                             ylim=(- 0.75 + np.min(y_pendulum_1), 0.75 + np.max(y_pendulum_2)))
         ax.grid()
         line, = ax.plot([], [], "o-", lw=4)
         trace_pendulum_1, = ax.plot([], [], '.-', lw=1, ms=2)
@@ -263,7 +264,7 @@ class DoublePendulum():
                       [self._d2 * cos(x[2]), self._d4, self._d5 * cos(x[2] - x[4])],
                       [self._d3 * cos(x[4]), self._d5 * cos(x[2] - x[4]), self._d6]])
         
-        C = np.array([[- self._d2 * sin(x[2]) * x[3]**2 - self._d3 * sin(x[4]) * x[5]**2 - self._input(t) + self._b * x[1]],
+        C = np.array([[- self._d2 * sin(x[2]) * x[3]**2 - self._d3 * sin(x[4]) * x[5]**2 - self._input(x)[0] + self._b * x[1]],
                       [self._d5 * sin(x[2] - x[4]) * x[5]**2 - self._f1 * sin(x[2])],
                       [- self._d5 * sin(x[2] - x[4]) * x[3]**2 - self._f2 * sin(x[4])]])
 
