@@ -562,10 +562,10 @@ class Master(MasterOptions):
         # Set the latest outputs in the results
         i = 0
         for model in self.models:
-            for key in model.states|model.output:
+            for key in model.output|model.states|model.input:
                 if key not in self.results:
-                    self.results[key] = np.array((model.states|model.output)[key])
-                self.results[key] = np.append(self.results[key], (model.states|model.output)[key])
+                    self.results[key] = np.array((model.output|model.states|model.input)[key])
+                self.results[key] = np.append(self.results[key], (model.output|model.states|model.input)[key])
                 # Set the latest error
                 try:
                     self.results["error"][key].append(error[i])
