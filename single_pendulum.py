@@ -72,7 +72,7 @@ class SinglePendulum():
     @property
     def output(self):
         self._output = self._C.dot(self._states)
-        return {"x" : self._output[0] + np.random.normal(0, 1e-2), "theta" : self._output[1]+ np.random.normal(0, 1e-2)}
+        return {"x" : self._output[0], "theta" : self._output[1]}
 
     @output.setter
     def output(self, new):
@@ -80,7 +80,7 @@ class SinglePendulum():
 
     @property
     def input(self):
-        return {"force" : self._input(self.time)}
+        return {"force_non_linear" : self._input(self.time)}
 
     @input.setter
     def input(self, new):
@@ -197,10 +197,12 @@ class SinglePendulum():
         time = results["time"][0::10]
 
         # Create the figure
-        fig = plt.figure(figsize=(5, 4))
-        ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_pendulum), 0.2 + np.max(x_pendulum)), 
-                             ylim=(- 0.5 + np.min(y_pendulum), 0.2 + np.max(y_pendulum)))
+        fig = plt.figure(figsize=(5, 4), dpi=200)
+        ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_cart), 0.2 + np.max(x_cart)), 
+                             ylim=(-0.1, 0.2 + np.max(y_pendulum)))
         ax.grid()
+        ax.set_xlabel("x (m)")
+        ax.set_ylabel("y (m)")
         line, = ax.plot([], [], "o-", lw=4)
         trace, = ax.plot([], [], '.-', lw=1, ms=2)
         trace_cart, = ax.plot([], [], '.-', lw=1, ms=2)
@@ -213,7 +215,7 @@ class SinglePendulum():
 
         # Save animation in gif format
         if savefig:
-            ani.save("single_pendulum.gif", writer='pillow')
+            ani.save("single_pendulum.gif", writer='pillow', fps=30)
 
     def _ode(self, t, x):
         """Contains the system of ordinary differential equations for the single-pendulum on a cart.
