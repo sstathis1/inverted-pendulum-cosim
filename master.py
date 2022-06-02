@@ -420,6 +420,7 @@ class Master(MasterOptions):
                     y1.append(float(value))
 
                 # Interpolate the input for the second model
+                last_input = list(self.models[1].input.values())
                 self.models[1].input = self._extrapolate(self.models[1].name, y1, current_time + step_size)
 
                 # Take a step with the second model
@@ -430,13 +431,13 @@ class Master(MasterOptions):
                 for key, value in self.models[1].output.items():
                     y2.append(float(value))
 
-                # Extrapolate the input for the first model
-                self.models[0].input = self._extrapolate(self.models[0].name, y2, current_time + step_size)
-
                 y_full = y1 + y2
 
                 # Restore states
                 self._set_states(states)
+
+                # Restore Input of second model
+                self.models[1].input = self._extrapolate(self.models[1].name, last_input, current_time)
 
                 # Take a half step with the first model
                 step_size = step_size / 2
