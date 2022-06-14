@@ -308,7 +308,7 @@ class SinglePendulumController():
         Q = np.diag([500, 50, 500, 50])
         R = 1
         P = linalg.solve_discrete_are(self._Ad, self._Bd, Q, R)
-        return linalg.inv(R + self._Bd.T.dot(P).dot(self._Bd)).dot(self._Bd.T).dot(P).dot(self._Ad)
+        return 1 / R * self._Bd.T.dot(P)
 
     def _is_observable(self):
         """Checks whether the system is observable given matrices A, C
