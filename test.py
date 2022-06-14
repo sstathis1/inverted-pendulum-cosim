@@ -12,18 +12,18 @@ Q = np.diag([0, 0, 0, 0, 0, 0])
 R = np.diag([1e-4, 1e-4, 1e-4])
 
 # Create the two model objects
-model_1 = Pendulum(1.5, 0.5, 0.6, 0.4, 0.6, 0)
-model_2 = Controller(1.5, 0.5, 0.6, 0.4, 0.6, 0, estimation_method="kalman", P=P, Q=Q, R=R)
+model_1 = Pendulum(1.5, 0.5, 0.6, 0.4, 0.6, 0.05)
+model_2 = Controller(1.5, 0.5, 0.6, 0.4, 0.6, 0.05, estimation_method="current", P=P, Q=Q, R=R)
 models = [model_1, model_2]
 
 # Define the master object for the co-simulation
 master = Master(models, step_size=1e-3, order=0, communication_method="Gauss", 
-                error_controlled=False, is_parallel=False)
+                error_controlled=True, is_parallel=False)
 
 # Simulate the models
 start_time = 0
 final_time = 5
-initial_states = [0, 0, 20 * pi / 180, 0, 20 * pi / 180, 0, 0, 0, 20 * pi / 180, 0, 20 * pi / 180, 0]
+initial_states = [0, 0, 20 * pi / 180, 0, 30 * pi / 180, 0, 0, 0, 20 * pi / 180, 0, 30 * pi / 180, 0]
 
 # Start the timer
 start_timer = time.perf_counter()
