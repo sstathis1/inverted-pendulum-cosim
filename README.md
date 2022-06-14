@@ -1,8 +1,8 @@
 # Inverted-Pendulum-CoSim
-Implementation of a co-simulation master algorithm for the optimal control of the dynamics of an inverted pendulum.
+Implementation of a co-simulation master algorithm for the optimal control (LQR-infinite time horizon) of the dynamics of an inverted pendulum.
 
-## Results of a single pendulum without controller: 
-![single_pendulum](https://user-images.githubusercontent.com/96697827/169050202-3df00c5a-63ab-4a25-8685-cc16820f0562.gif)
+## Results of a single pendulum : 
+![single_pendulum](https://user-images.githubusercontent.com/96697827/171819625-1d2ff682-2931-4695-ab88-b95f5f472ed1.gif)
 
-## Results of a single pendulum with LQR infinite time horizon controller:
-![single_pendulum](https://user-images.githubusercontent.com/96697827/169226784-4830f056-84d4-4885-b3b6-83005e946e0d.gif)
+## Results of a double pendulum:
+![double_pendulum](https://user-images.githubusercontent.com/96697827/171820012-db352a69-cb92-44df-9d55-3c6a0b665d02.gif)
