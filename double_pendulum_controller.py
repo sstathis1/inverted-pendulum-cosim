@@ -162,11 +162,6 @@ class DoublePendulumController():
         self.sampling_time = step_size
         self._discretize_ss(step_size)
 
-        # Compute the discretized covariances
-        if self._estimation_method == "kalman":
-            self._Q = self._Q * self.sampling_time
-            self._R = self._R / self.sampling_time
-
         # Compute the optimal gain from discrete LQR
         self.gain = self._lqr()
         self.feedback = - self.gain.dot(self._states)
