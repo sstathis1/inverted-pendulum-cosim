@@ -203,16 +203,19 @@ class SinglePendulum():
         time = results["time"][0::10]
 
         # Create the figure
-        fig = plt.figure(figsize=(5, 4), dpi=200)
-        ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_cart), 0.2 + np.max(x_cart)), 
-                             ylim=(-0.1, 0.2 + np.max(y_pendulum)))
+        fig = plt.figure(figsize=(6, 4), dpi=200)
+        ax = fig.add_subplot(xlim=(-0.2 + np.min(x_cart), 1.2), 
+                             ylim=(-0.1, 0.8))
         ax.grid()
-        ax.set_xlabel("x (m)")
-        ax.set_ylabel("y (m)")
-        line, = ax.plot([], [], "o-", lw=4, color="orange")
-        cart = ax.add_patch(matplotlib.patches.Rectangle((0-cart_width/2, 0-cart_height/2), cart_width, cart_height))
-        trace, = ax.plot([], [], '.-', lw=1, ms=2)
-        trace_cart, = ax.plot([], [], '.-', lw=1, ms=2)
+        ax.set_xlabel("x (m)", fontweight='bold')
+        ax.set_ylabel("y (m)", fontweight='bold')
+        line, = ax.plot([], [], "o-", lw=4, color="#FA4616")
+        cart = ax.add_patch(matplotlib.patches.Rectangle((0-cart_width/2, 0-cart_height/2), cart_width, cart_height,
+                            facecolor = "#005776",
+                            fill=True,
+                            lw=5))
+        trace, = ax.plot([], [], '.-', lw=1, ms=2, color="#FFA300")
+        trace_cart, = ax.plot([], [], '.-', lw=1, ms=2, color="#2DCCD3")
         history_x, history_y = deque(maxlen=history_len), deque(maxlen=history_len)
         history_cart = deque(maxlen=history_len)
         time_template = 'time = %.1fs'

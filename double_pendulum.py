@@ -235,15 +235,20 @@ class DoublePendulum():
         time = results["time"][0::10]
 
         # Create the figure
-        fig = plt.figure(figsize=(5, 4), dpi=200)
-        ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_pendulum_2), 0.2 + np.max(x_pendulum_2)), 
-                             ylim=(- 0.75 + np.min(y_pendulum_1), 0.75 + np.max(y_pendulum_2)))
+        fig = plt.figure(figsize=(6, 4), dpi=200)
+        ax = fig.add_subplot(xlim=(- 0.2, 1.8), 
+                             ylim=(- 0.1, 1.2))
         ax.grid()
-        line, = ax.plot([], [], "o-", lw=4)
-        trace_pendulum_1, = ax.plot([], [], '.-', lw=1, ms=2)
-        trace_pendulum_2, = ax.plot([], [], '.-', lw=1, ms=2)
-        cart = ax.add_patch(matplotlib.patches.Rectangle((0-cart_width/2, 0-cart_height/2), cart_width, cart_height))
-        trace_cart, = ax.plot([], [], '.-', lw=1, ms=2)
+        ax.set_xlabel("x (m)", fontweight='bold')
+        ax.set_ylabel("y (m)", fontweight='bold')
+        line, = ax.plot([], [], "o-", lw=4, color="#FA4616")
+        trace_pendulum_1, = ax.plot([], [], '.-', lw=1, ms=2, color="#FFA300")
+        trace_pendulum_2, = ax.plot([], [], '.-', lw=1, ms=2, color="#FFA300")
+        cart = ax.add_patch(matplotlib.patches.Rectangle((0-cart_width/2, 0-cart_height/2), cart_width, cart_height,
+                            facecolor = "#005776",
+                            fill=True,
+                            lw=5))
+        trace_cart, = ax.plot([], [], '.-', lw=1, ms=2, color="#2DCCD3")
         history_px1, history_py1= deque(maxlen=history_len), deque(maxlen=history_len)
         history_px2, history_py2= deque(maxlen=history_len), deque(maxlen=history_len)
         history_cart = deque(maxlen=history_len)
