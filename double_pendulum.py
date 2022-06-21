@@ -1,5 +1,6 @@
 from collections import deque
 import matplotlib.pyplot as plt
+import matplotlib.patches
 from matplotlib.animation import FuncAnimation
 import numpy as np
 from numpy import cos, sin
@@ -92,7 +93,7 @@ class DoublePendulum():
     @property
     def output(self):
         self._output = self._C.dot(self._states)
-        return {"x" : self._output[0] + np.random.normal(0, 1e-2), "theta_1" : self._output[1]+ np.random.normal(0, 1e-2), "theta_2" : self._output[2]+ np.random.normal(0, 1e-2)}
+        return {"x" : self._output[0], "theta_1" : self._output[1], "theta_2" : self._output[2]}
 
     @output.setter
     def output(self, new):
@@ -208,6 +209,7 @@ class DoublePendulum():
             history_py2.appendleft(y[2])
             history_cart.appendleft(x[0])
             line.set_data(x, y)
+            cart.set_xy([x_cart[i]-cart_width/2, 0-cart_height/2])
             trace_pendulum_1.set_data(history_px1, history_py1)
             trace_pendulum_2.set_data(history_px2, history_py2)
             trace_cart.set_data(history_cart, 0)
@@ -218,7 +220,11 @@ class DoublePendulum():
         history_len = 1500
         
         # Time between two points in (s)
-        dt = 0.001
+        dt = 0.01
+
+        # Set dimensions of cart
+        cart_height = 0.05
+        cart_width = 0.2
 
         # x, y, time data from results for pendulum and cart
         x_cart = results["x"][0::10]
@@ -229,13 +235,14 @@ class DoublePendulum():
         time = results["time"][0::10]
 
         # Create the figure
-        fig = plt.figure(figsize=(5, 4))
+        fig = plt.figure(figsize=(5, 4), dpi=200)
         ax = fig.add_subplot(xlim=(- 0.2 + np.min(x_pendulum_2), 0.2 + np.max(x_pendulum_2)), 
                              ylim=(- 0.75 + np.min(y_pendulum_1), 0.75 + np.max(y_pendulum_2)))
         ax.grid()
         line, = ax.plot([], [], "o-", lw=4)
         trace_pendulum_1, = ax.plot([], [], '.-', lw=1, ms=2)
         trace_pendulum_2, = ax.plot([], [], '.-', lw=1, ms=2)
+        cart = ax.add_patch(matplotlib.patches.Rectangle((0-cart_width/2, 0-cart_height/2), cart_width, cart_height))
         trace_cart, = ax.plot([], [], '.-', lw=1, ms=2)
         history_px1, history_py1= deque(maxlen=history_len), deque(maxlen=history_len)
         history_px2, history_py2= deque(maxlen=history_len), deque(maxlen=history_len)
@@ -247,7 +254,7 @@ class DoublePendulum():
 
         # Save animation in gif format
         if savefig:
-            ani.save("double_pendulum.gif", writer='pillow')
+            ani.save("double_pendulum.gif", writer='pillow', fps=30)
 
     def _ode(self, t, x):
         """Contains the system of ordinary differential equations for the double-pendulum on a cart.
