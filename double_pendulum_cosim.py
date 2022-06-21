@@ -22,7 +22,7 @@ master = Master(models, step_size=1e-3, order=0, communication_method="Gauss",
 
 # Simulate the models
 start_time = 0
-final_time = 6
+final_time = 5
 initial_states = [0, 0, 20 * pi / 180, 0, 30 * pi / 180, 0, 0, 0, 20 * pi / 180, 0, 30 * pi / 180, 0]
 
 # Start the timer
