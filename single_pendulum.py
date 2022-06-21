@@ -1,5 +1,6 @@
 from collections import deque
 import matplotlib.pyplot as plt
+import matplotlib.patches
 from matplotlib.animation import FuncAnimation
 import numpy as np
 from numpy import cos, sin
@@ -179,6 +180,7 @@ class SinglePendulum():
             history_y.appendleft(y[1])
             history_cart.appendleft(x[0])
             line.set_data(x, y)
+            cart.set_xy([x_cart[i]-cart_width/2, 0-cart_height/2])
             trace.set_data(history_x, history_y)
             trace_cart.set_data(history_cart, 0)
             time_text.set_text(time_template % (time[i]))
@@ -188,12 +190,16 @@ class SinglePendulum():
         history_len = 1500
         
         # Time between two points in (s)
-        dt = 0.001
+        dt = 0.01
+
+        # Set dimensions of cart
+        cart_height = 0.05
+        cart_width = 0.2
 
         # x, y, time data from results for pendulum and cart
         x_cart = results["x"][0::10]
         x_pendulum = x_cart + self.get("length_pendulum") * sin(results["theta"][0::10])
-        y_pendulum = self.get("length_pendulum") * cos(results["theta"])[0::10]
+        y_pendulum = self.get("length_pendulum") * cos(results["theta"][0::10])
         time = results["time"][0::10]
 
         # Create the figure
@@ -203,7 +209,8 @@ class SinglePendulum():
         ax.grid()
         ax.set_xlabel("x (m)")
         ax.set_ylabel("y (m)")
-        line, = ax.plot([], [], "o-", lw=4)
+        line, = ax.plot([], [], "o-", lw=4, color="orange")
+        cart = ax.add_patch(matplotlib.patches.Rectangle((0-cart_width/2, 0-cart_height/2), cart_width, cart_height))
         trace, = ax.plot([], [], '.-', lw=1, ms=2)
         trace_cart, = ax.plot([], [], '.-', lw=1, ms=2)
         history_x, history_y = deque(maxlen=history_len), deque(maxlen=history_len)
