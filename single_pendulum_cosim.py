@@ -16,15 +16,15 @@ def main():
     states_nl = {}
     states_l = {}
     error_states = {}
-    for estimation_method in ["kalman"]:
+    for estimation_method in ["current"]:
         # Create the two model objects
         model_1 = Pendulum(1.5, 0.5, 0.6, 0.05)
         model_2 = Controller(1.5, 0.5, 0.6, 0.05, estimation_method=estimation_method, P=P, R=R)
         models = [model_1, model_2]
 
         # Define the master object for the co-simulation
-        master = Master(models, step_size=1e-2, order=0, communication_method="Gauss", 
-                        error_controlled=True, is_parallel=False)
+        master = Master(models, step_size=1e-3, order=0, communication_method="Gauss", 
+                        error_controlled=False, is_parallel=False)
 
         # Simulate the models
         start_time = 0
@@ -46,7 +46,7 @@ def main():
                                                 res[estimation_method]["theta_linear"], res[estimation_method]["omega_linear"]])
         error_states[estimation_method] = np.linalg.norm(states_nl[estimation_method] - states_l[estimation_method], axis=0)
 
-    # model_1.animate(res, savefig=False)
+    model_1.animate(res[estimation_method], savefig=True)
     
     plot_results(start_time, res, error_states)
 
