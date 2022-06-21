@@ -13,17 +13,17 @@ R = np.diag([1e-4, 1e-4, 1e-4])
 
 # Create the two model objects
 model_1 = Pendulum(1.5, 0.5, 0.6, 0.4, 0.6, 0.05)
-model_2 = Controller(1.5, 0.5, 0.6, 0.4, 0.6, 0.05, estimation_method="kalman", P=P, R=R)
+model_2 = Controller(1.5, 0.5, 0.6, 0.4, 0.6, 0.05, estimation_method="current", P=P, R=R)
 models = [model_1, model_2]
 
 # Define the master object for the co-simulation
 master = Master(models, step_size=1e-3, order=0, communication_method="Gauss", 
-                error_controlled=True, is_parallel=False)
+                error_controlled=False, is_parallel=False)
 
 # Simulate the models
 start_time = 0
 final_time = 6
-initial_states = [0, 0, 20 * pi / 180, 0, 20 * pi / 180, 0, 0, 0, 20 * pi / 180, 0, 20 * pi / 180, 0]
+initial_states = [0, 0, 20 * pi / 180, 0, 30 * pi / 180, 0, 0, 0, 20 * pi / 180, 0, 30 * pi / 180, 0]
 
 # Start the timer
 start_timer = time.perf_counter()
@@ -33,7 +33,7 @@ res = master.simulate(initial_states, start_time, final_time)
 end_timer = time.perf_counter()
 print(f"Co-Simulation finished correctly in : {end_timer-start_timer} second(s)")
 
-model_1.animate(res, savefig=False)
+model_1.animate(res, savefig=True)
 
 # Save the state error
 states_nl = np.array([res["x"], res["v"], res["theta_1"], res["omega_1"], res["theta_2"], res["omega_2"]])
